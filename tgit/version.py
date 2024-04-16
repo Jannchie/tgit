@@ -26,9 +26,9 @@ class Version:
     build: Optional[str] = None
 
     def __str__(self):
-        if self.release and self.build:
-            return f"{self.major}.{self.minor}.{self.patch}-{self.release}+{self.build}"
         if self.release:
+            if self.build:
+                return f"{self.major}.{self.minor}.{self.patch}-{self.release}+{self.build}"
             return f"{self.major}.{self.minor}.{self.patch}-{self.release}"
         if self.build:
             return f"{self.major}.{self.minor}.{self.patch}+{self.build}"
@@ -71,46 +71,35 @@ def get_prev_version():
 
         with open("package.json") as f:
             json_data = json.load(f)
-            version = json_data.get("version")
-            if version:
+            if version := json_data.get("version"):
                 return Version.from_str(version)
-    # for python with pyproject.toml
     elif os.path.exists("pyproject.toml"):
 
         with open("pyproject.toml", "rb") as f:
             toml_data = tomllib.load(f)
-            version = toml_data.get("project", {}).get("version")
-            if version:
+            if version := toml_data.get("project", {}).get("version"):
                 return Version.from_str(version)
-            version = toml_data.get("tool", {}).get("poetry", {}).get("version")
-            if version:
+            if version := toml_data.get("tool", {}).get("poetry", {}).get("version"):
                 return Version.from_str(version)
-            version = toml_data.get("tool", {}).get("flit", {}).get("metadata", {}).get("version")
-            if version:
+            if version := toml_data.get("tool", {}).get("flit", {}).get("metadata", {}).get("version"):
                 return Version.from_str(version)
-            version = toml_data.get("tool", {}).get("setuptools", {}).get("setup_requires", {}).get("version")
-            if version:
+            if version := toml_data.get("tool", {}).get("setuptools", {}).get("setup_requires", {}).get("version"):
                 return Version.from_str(version)
 
-    # for python with setup.py
     elif os.path.exists("setup.py"):
         with open("setup.py") as f:
             setup_data = f.read()
-            res = re.search(r"version=['\"]([^'\"]+)['\"]", setup_data)
-            if res:
-                return Version.from_str(res.group(1))
+            if res := re.search(r"version=['\"]([^'\"]+)['\"]", setup_data):
+                return Version.from_str(res[1])
 
-    # for rust
     elif os.path.exists(
         "Cargo.toml",
     ):
         with open("Cargo.toml", "rb") as f:
             cargo_data = tomllib.load(f)
-            version = cargo_data.get("package", {}).get("version")
-            if version:
+            if version := cargo_data.get("package", {}).get("version"):
                 return Version.from_str(version)
 
-    # for others
     elif os.path.exists("VERSION"):
         with open("VERSION") as f:
             version = f.read().strip()
@@ -226,7 +215,7 @@ def handle_version(args: VersionArgs):
         # check package.json
         if os.path.exists("package.json"):
             if verbose > 0:
-                console.print(f"Updating package.json")
+                console.print("Updating package.json")
             with open("package.json", "r") as f:
                 package_json = f.read()
             package_json = re.sub(r'"version":\s*".*?"', f'"version": "{next_version_str}"', package_json)
@@ -239,38 +228,37 @@ def handle_version(args: VersionArgs):
         commands = []
         if args.no_commit:
             if verbose > 0:
-                console.print(f"Skipping commit")
+                console.print("Skipping commit")
         else:
             use_emoji = settings.get("commit", {}).get("emoji", False)
             commands.append(get_commit_command("version", None, f"{git_tag}", use_emoji=use_emoji))
 
         if args.no_tag:
             if verbose > 0:
-                console.print(f"Skipping tag")
+                console.print("Skipping tag")
         else:
             commands.append(f"git tag {git_tag} -m 'Release {git_tag}'")
 
         if args.no_push:
             if verbose > 0:
-                console.print(f"Skipping push")
+                console.print("Skipping push")
         else:
-            commands.append(f"git push")
+            commands.append("git push")
             commands.append(f"git push {git_tag}")
         commands_str = "\n".join(commands)
         run_command(commands_str)
         return
-    pass
 
 
 class VersionChoice:
     def __init__(self, previous_version: Version, bump: str):
         self.previous_version = previous_version
         self.bump = bump
-        if bump == "patch":
+        if bump == "major":
             self.next_version = Version(
-                major=previous_version.major,
-                minor=previous_version.minor,
-                patch=previous_version.patch + 1,
+                major=previous_version.major + 1,
+                minor=0,
+                patch=0,
             )
         elif bump == "minor":
             self.next_version = Version(
@@ -278,17 +266,17 @@ class VersionChoice:
                 minor=previous_version.minor + 1,
                 patch=0,
             )
-        elif bump == "major":
-            self.next_version = Version(
-                major=previous_version.major + 1,
-                minor=0,
-                patch=0,
-            )
-        elif bump == "prepatch":
+        elif bump == "patch":
             self.next_version = Version(
                 major=previous_version.major,
                 minor=previous_version.minor,
                 patch=previous_version.patch + 1,
+            )
+        elif bump == "premajor":
+            self.next_version = Version(
+                major=previous_version.major + 1,
+                minor=0,
+                patch=0,
                 release="RELEASE",
             )
         elif bump == "preminor":
@@ -298,11 +286,11 @@ class VersionChoice:
                 patch=0,
                 release="RELEASE",
             )
-        elif bump == "premajor":
+        elif bump == "prepatch":
             self.next_version = Version(
-                major=previous_version.major + 1,
-                minor=0,
-                patch=0,
+                major=previous_version.major,
+                minor=previous_version.minor,
+                patch=previous_version.patch + 1,
                 release="RELEASE",
             )
         elif bump == "previous":
