@@ -64,15 +64,19 @@ def run_command(command: str):
 
     with console.status("[bold green]Executing...") as status:
         # use subprocess to run the command
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        # get the output and error
-        stdout, stderr = process.communicate()
+        commands = command.split("\n")
+        for command in commands:
+            process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            status.update(f"[bold green]Executing: {command}[/bold green]")
 
-        if process.returncode != 0:
-            status.update("[bold red]Error[/bold red]")
-        else:
-            status.update("[bold green]Execute successful[/bold green]")
-        if stderr != b"" and process.returncode != 0:
-            sys.stderr.write(stderr.decode())
-        if stdout != b"":
-            sys.stdout.write(stdout.decode())
+            # get the output and error
+            stdout, stderr = process.communicate()
+
+            if process.returncode != 0:
+                status.update("[bold red]Error[/bold red]")
+            else:
+                status.update("[bold green]Execute successful[/bold green]")
+            if stderr != b"" and process.returncode != 0:
+                sys.stderr.write(stderr.decode())
+            if stdout != b"":
+                sys.stdout.write(stdout.decode())

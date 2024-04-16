@@ -1,3 +1,4 @@
+import difflib
 import os
 import re
 import subprocess
@@ -7,7 +8,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import inquirer
-import rich
+from rich.panel import Panel
 
 from tgit.settings import settings
 from tgit.utils import console, get_commit_command, run_command
@@ -125,18 +126,18 @@ def handle_version(args: VersionArgs):
     verbose = args.verbose
 
     # check if there is uncommitted changes
-    status = subprocess.run(["git", "status", "--porcelain"], capture_output=True)
-    if status.returncode != 0:
-        console.print("Error getting git status")
-        return
-    if status.stdout:
-        console.print("There are uncommitted changes, please commit or stash them first")
-        return
+    # status = subprocess.run(["git", "status", "--porcelain"], capture_output=True)
+    # if status.returncode != 0:
+    #     console.print("Error getting git status")
+    #     return
+    # if status.stdout:
+    #     console.print("There are uncommitted changes, please commit or stash them first")
+    #     return
 
     if verbose > 0:
         console.print("Bumping version...")
         console.print("Getting current version...")
-    with rich.status("[bold green]Getting current version..."):
+    with console.status("[bold green]Getting current version..."):
         prev_version = get_prev_version()
 
     console.print(f"Previous version: [cyan bold]{prev_version}")
@@ -223,6 +224,57 @@ def handle_version(args: VersionArgs):
             with open("package.json", "w") as f:
                 f.write(package_json)
 
+        if os.path.exists("pyproject.toml"):
+            if verbose > 0:
+                console.print("Updating pyproject.toml")
+            with open("pyproject.toml", "r") as f:
+                pyproject_toml = f.read()
+            new_pyproject_toml = re.sub(r'version\s*=\s*".*?"', f'version = "{next_version_str}"', pyproject_toml)
+            # print diff between the two files
+            old_lines = pyproject_toml.splitlines()
+            new_lines = new_pyproject_toml.splitlines()
+            diff = list(difflib.Differ().compare(old_lines, new_lines))
+            print_lines = {}
+            for i, line in enumerate(diff):
+                if line.startswith("+") or line.startswith("-"):
+                    # console.print(f"[green]{line}")
+                    for j in range(i - 3, i + 3):
+                        if j >= 0 and j < len(diff):
+                            print_lines[j] = diff[j][0]
+
+            diffs = []
+            for i, line in enumerate(diff):
+                line = line.replace("[", "\\[")
+                line = line.strip()
+                if i in print_lines:
+                    if print_lines[i] == "+":
+                        diffs.append(f"[green]{line}[/green]")
+                    elif print_lines[i] == "-":
+                        diffs.append(f"[red]{line}[/red]")
+                    elif print_lines[i] == "?":
+                        # replace the ? with a space
+                        line = line.replace("?", " ")
+                        diffs.append(f"[yellow]{line}[/yellow]")
+                    else:
+                        diffs.append(line)
+            if diffs:
+                console.print(
+                    Panel.fit(
+                        "\n".join(diffs),
+                        border_style="cyan",
+                        title="Diff for pyproject.toml",
+                        title_align="left",
+                        padding=(1, 4),
+                    )
+                )
+
+                ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
+                if not ok or not ok["continue"]:
+                    return
+
+                with open("pyproject.toml", "w") as f:
+                    f.write(new_pyproject_toml)
+
         git_tag = f"v{next_version_str}"
 
         commands = []
@@ -230,6 +282,7 @@ def handle_version(args: VersionArgs):
             if verbose > 0:
                 console.print("Skipping commit")
         else:
+            commands.append("git add .")
             use_emoji = settings.get("commit", {}).get("emoji", False)
             commands.append(get_commit_command("version", None, f"{git_tag}", use_emoji=use_emoji))
 
@@ -324,6 +377,8 @@ def define_version_parser(subparsers):
     version_group.add_argument("-pm", "--preminor", help="preminor version", type=str)
     version_group.add_argument("-pM", "--premajor", help="premajor version", type=str)
     version_group.add_argument("version", help="version to bump to", type=str, nargs="?")
+    parser_version.set_defaults(func=handle_version)
+    parser_version.set_defaults(func=handle_version)
     parser_version.set_defaults(func=handle_version)
     parser_version.set_defaults(func=handle_version)
     parser_version.set_defaults(func=handle_version)

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tgit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool that simplifies and streamlines your Git workflow, making version control a breeze."
 requires-python = ">=3.6"
 keywords = ["git", "tool", "changelog", "version", "commit"]
