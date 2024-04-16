@@ -290,14 +290,14 @@ def handle_version(args: VersionArgs):
             if verbose > 0:
                 console.print("Skipping tag")
         else:
-            commands.append(f"git tag {git_tag} -m 'Release {git_tag}'")
+            commands.append(f"git tag {git_tag}'")
 
         if args.no_push:
             if verbose > 0:
                 console.print("Skipping push")
         else:
             commands.append("git push")
-            commands.append(f"git push --tag {git_tag}")
+            commands.append("git push --tag")
         commands_str = "\n".join(commands)
         run_command(commands_str)
         return
