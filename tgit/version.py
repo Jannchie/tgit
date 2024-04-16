@@ -1,10 +1,13 @@
 import os
 import re
+import subprocess
+import tomllib
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Optional
 
 import inquirer
+import rich
 
 from tgit.utils import console, get_commit_command, run_command
 
@@ -60,7 +63,70 @@ class VersionArgs:
 
 def get_prev_version():
     # first, check if there is a file with the version, such as a package.json, pyproject.toml, etc.
+
+    # for nodejs
+    if os.path.exists("package.json"):
+        import json
+
+        with open("package.json") as f:
+            json_data = json.load(f)
+            version = json_data.get("version")
+            if version:
+                return Version.from_str(version)
+    # for python with pyproject.toml
+    elif os.path.exists("pyproject.toml"):
+
+        with open("pyproject.toml", "rb") as f:
+            toml_data = tomllib.load(f)
+            version = toml_data.get("project", {}).get("version")
+            if version:
+                return Version.from_str(version)
+            version = toml_data.get("tool", {}).get("poetry", {}).get("version")
+            if version:
+                return Version.from_str(version)
+            version = toml_data.get("tool", {}).get("flit", {}).get("metadata", {}).get("version")
+            if version:
+                return Version.from_str(version)
+            version = toml_data.get("tool", {}).get("setuptools", {}).get("setup_requires", {}).get("version")
+            if version:
+                return Version.from_str(version)
+
+    # for python with setup.py
+    elif os.path.exists("setup.py"):
+        with open("setup.py") as f:
+            setup_data = f.read()
+            res = re.search(r"version=['\"]([^'\"]+)['\"]", setup_data)
+            if res:
+                return Version.from_str(res.group(1))
+
+    # for rust
+    elif os.path.exists(
+        "Cargo.toml",
+    ):
+        with open("Cargo.toml", "rb") as f:
+            cargo_data = tomllib.load(f)
+            version = cargo_data.get("package", {}).get("version")
+            if version:
+                return Version.from_str(version)
+
+    # for others
+    elif os.path.exists("VERSION"):
+        with open("VERSION") as f:
+            version = f.read().strip()
+            return Version.from_str(version)
+    elif os.path.exists("VERSION.txt"):
+        with open("VERSION.txt") as f:
+            version = f.read().strip()
+            return Version.from_str(version)
+
     # if not, check if there is a git tag with the version
+    status = subprocess.run(["git", "tag"], capture_output=True)
+    if status.returncode == 0:
+        tags = status.stdout.decode().split("\n")
+        for tag in tags:
+            if tag.startswith("v"):
+                return Version.from_str(tag[1:])
+
     # if not, return 0.0.0
     return Version(major=0, minor=0, patch=0)
 
@@ -68,11 +134,20 @@ def get_prev_version():
 def handle_version(args: VersionArgs):
     verbose = args.verbose
 
+    # check if there is uncommitted changes
+    status = subprocess.run(["git", "status", "--porcelain"], capture_output=True)
+    if status.returncode != 0:
+        console.print("Error getting git status")
+        return
+    if status.stdout:
+        console.print("There are uncommitted changes, please commit or stash them first")
+        return
+
     if verbose > 0:
         console.print("Bumping version...")
         console.print("Getting current version...")
-
-    prev_version = get_prev_version()
+    with rich.status("[bold green]Getting current version..."):
+        prev_version = get_prev_version()
 
     console.print(f"Previous version: [cyan bold]{prev_version}")
     # get next version
@@ -83,7 +158,9 @@ def handle_version(args: VersionArgs):
                 inquirer.List(
                     "target",
                     message="Select the version to bump to",
-                    choices=[VersionChoice(prev_version, bump) for bump in ["patch", "minor", "major", "prepatch", "preminor", "premajor", "custom"]],
+                    choices=[
+                        VersionChoice(prev_version, bump) for bump in ["patch", "minor", "major", "prepatch", "preminor", "premajor", "previous", "custom"]
+                    ],
                     carousel=True,
                 ),
             ]
@@ -226,6 +303,8 @@ class VersionChoice:
                 patch=0,
                 release="RELEASE",
             )
+        elif bump == "previous":
+            self.next_version = previous_version
 
     def __str__(self):
         if "next_version" in self.__dict__:
