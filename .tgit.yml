@@ -1,0 +1,5 @@
+commit:
+  emoji: true
+  types:
+    - type: fix
+      emoji: ":bug:"

@@ -1,0 +1,79 @@
+import subprocess
+import sys
+from typing import Optional
+
+import inquirer
+import rich
+from rich.panel import Panel
+from rich.syntax import Syntax
+
+from tgit.settings import settings
+
+console = rich.get_console()
+
+
+type_emojis = {
+    "feat": ":sparkles:",
+    "fix": ":adhesive_bandage:",
+    "chore": ":wrench:",
+    "docs": ":page_with_curl:",
+    "style": ":lipstick:",
+    "refactor": ":hammer:",
+    "perf": ":zap:",
+    "test": ":rotating_light:",
+    "version": ":bookmark:",
+    "ci": ":construction_worker:",
+}
+
+
+def get_commit_command(commit_type: str, commit_scope: Optional[str], commit_msg: str, use_emojis=False, is_breaking=False):
+    if commit_type.endswith("!"):
+        commit_type = commit_type[:-1]
+        is_breaking = True
+        breaking_str = "!"
+    else:
+        breaking_str = "!" if is_breaking else ""
+    if commit_scope is None:
+        msg = f"{commit_type}{breaking_str}: {commit_msg}"
+    else:
+        msg = f"{commit_type}{breaking_str}({commit_scope}): {commit_msg}"
+    if use_emojis:
+        msg = f"{type_emojis.get(commit_type, ':wrench:' )} {msg}"
+    command = f'git commit -m "{msg}"'
+    return command
+
+
+def run_command(command: str):
+    if settings.get("show_command", True):
+        panel = Panel.fit(
+            Syntax(command, "bash", line_numbers=False, theme="github-dark", background_color="default", word_wrap=True),
+            title="The following command will be executed:",
+            border_style="cyan",
+            highlight=True,
+            padding=(1, 4),
+            title_align="left",
+            subtitle_align="right",
+        )
+        print()
+        console.print(panel)
+
+    if not settings.get("skip_confirm", False):
+        ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
+        if not ok or not ok["continue"]:
+            return
+        console.print()
+
+    with console.status("[bold green]Executing...") as status:
+        # use subprocess to run the command
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # get the output and error
+        stdout, stderr = process.communicate()
+
+        if process.returncode != 0:
+            status.update("[bold red]Error[/bold red]")
+        else:
+            status.update("[bold green]Execute successful[/bold green]")
+        if stderr != b"" and process.returncode != 0:
+            sys.stderr.write(stderr.decode())
+        if stdout != b"":
+            sys.stdout.write(stdout.decode())
