@@ -290,7 +290,7 @@ def handle_version(args: VersionArgs):
             if verbose > 0:
                 console.print("Skipping tag")
         else:
-            commands.append(f"git tag {git_tag}'")
+            commands.append(f"git tag {git_tag}")
 
         if args.no_push:
             if verbose > 0:
