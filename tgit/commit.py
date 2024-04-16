@@ -44,7 +44,9 @@ def handle_commit(args: CommitArgs):
     commit_type = args.type
     commit_scope = args.scope
     commit_msg = args.message
-    use_emojis = args.emoji
+    use_emoji = args.emoji
+    if use_emoji == False:
+        use_emoji = settings.get("commit", {}).get("emoji", False)
     is_breaking = args.breaking
-    command = get_commit_command(commit_type, commit_scope, commit_msg, use_emojis, is_breaking)
+    command = get_commit_command(commit_type, commit_scope, commit_msg, use_emoji, is_breaking)
     run_command(command)

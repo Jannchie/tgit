@@ -26,7 +26,7 @@ type_emojis = {
 }
 
 
-def get_commit_command(commit_type: str, commit_scope: Optional[str], commit_msg: str, use_emojis=False, is_breaking=False):
+def get_commit_command(commit_type: str, commit_scope: Optional[str], commit_msg: str, use_emoji=False, is_breaking=False):
     if commit_type.endswith("!"):
         commit_type = commit_type[:-1]
         is_breaking = True
@@ -37,7 +37,7 @@ def get_commit_command(commit_type: str, commit_scope: Optional[str], commit_msg
         msg = f"{commit_type}{breaking_str}: {commit_msg}"
     else:
         msg = f"{commit_type}{breaking_str}({commit_scope}): {commit_msg}"
-    if use_emojis:
+    if use_emoji:
         msg = f"{type_emojis.get(commit_type, ':wrench:' )} {msg}"
     command = f'git commit -m "{msg}"'
     return command

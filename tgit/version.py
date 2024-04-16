@@ -9,6 +9,7 @@ from typing import Optional
 import inquirer
 import rich
 
+from tgit.settings import settings
 from tgit.utils import console, get_commit_command, run_command
 
 semver_regex = re.compile(
@@ -240,7 +241,8 @@ def handle_version(args: VersionArgs):
             if verbose > 0:
                 console.print(f"Skipping commit")
         else:
-            commands.append(get_commit_command("version", None, f"{git_tag}", use_emojis=True))
+            use_emoji = settings.get("commit", {}).get("emoji", False)
+            commands.append(get_commit_command("version", None, f"{git_tag}", use_emoji=use_emoji))
 
         if args.no_tag:
             if verbose > 0:
