@@ -297,7 +297,7 @@ def handle_version(args: VersionArgs):
                 console.print("Skipping push")
         else:
             commands.append("git push")
-            commands.append(f"git push {git_tag}")
+            commands.append(f"git push --tag {git_tag}")
         commands_str = "\n".join(commands)
         run_command(commands_str)
         return
