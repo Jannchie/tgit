@@ -27,3 +27,4 @@ classifiers = [
 
 [project.scripts]
 tgit = "tgit.cli:main"
+gitt = "tgit.cli:main"
