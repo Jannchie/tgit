@@ -105,6 +105,7 @@ def get_prev_version():
         with open("VERSION") as f:
             version = f.read().strip()
             return Version.from_str(version)
+
     elif os.path.exists("VERSION.txt"):
         with open("VERSION.txt") as f:
             version = f.read().strip()
@@ -186,6 +187,8 @@ def handle_version(args: VersionArgs):
                     )
                 ]
             )
+            if not ans:
+                return
             release = ans["identifier"]
             next_version.release = release
         if target.bump == "custom":
@@ -274,6 +277,36 @@ def handle_version(args: VersionArgs):
 
                 with open("pyproject.toml", "w") as f:
                     f.write(new_pyproject_toml)
+
+        if os.path.exists("setup.py"):
+            if verbose > 0:
+                console.print("Updating setup.py")
+            with open("setup.py", "r") as f:
+                setup_py = f.read()
+            new_setup_py = re.sub(r"version=['\"].*?['\"]", f"version='{next_version_str}'", setup_py)
+            with open("setup.py", "w") as f:
+                f.write(new_setup_py)
+
+        if os.path.exists("Cargo.toml"):
+            if verbose > 0:
+                console.print("Updating Cargo.toml")
+            with open("Cargo.toml", "r") as f:
+                cargo_toml = f.read()
+            new_cargo_toml = re.sub(r"version\s*=\s*\".*?\"", f'version = "{next_version_str}"', cargo_toml)
+            with open("Cargo.toml", "w") as f:
+                f.write(new_cargo_toml)
+
+        if os.path.exists("VERSION"):
+            if verbose > 0:
+                console.print("Updating VERSION")
+            with open("VERSION", "w") as f:
+                f.write(next_version_str)
+
+        if os.path.exists("VERSION.txt"):
+            if verbose > 0:
+                console.print("Updating VERSION.txt")
+            with open("VERSION.txt", "w") as f:
+                f.write(next_version_str)
 
         git_tag = f"v{next_version_str}"
 
