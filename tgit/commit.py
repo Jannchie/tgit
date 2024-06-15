@@ -5,22 +5,21 @@ from typing import Optional
 from tgit.settings import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
 
+commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
+
 
 def define_commit_parser(subparsers):
     commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
-    prefix = ["!", ""]
     commit_settings = settings.get("commit", {})
     types_settings = commit_settings.get("types", [])
     for data in types_settings:
         type_emojis[data.get("type")] = data.get("emoji")
         commit_type.append(data.get("type"))
 
-    choices = ["".join(data) for data in itertools.product(commit_type, prefix)] + ["ci", "test", "version"]
     parser_commit = subparsers.add_parser("commit", help="commit changes following the conventional commit format")
     parser_commit.add_argument(
         "type",
         help="commit type",
-        choices=choices,
     )
     parser_commit.add_argument("scope", help="commit scope", type=str, nargs="?")
     parser_commit.add_argument("message", help="commit message", type=str)
@@ -40,6 +39,14 @@ class CommitArgs:
 
 
 def handle_commit(args: CommitArgs):
+
+    global commit_type
+    prefix = ["", "!"]
+    choices = ["".join(data) for data in itertools.product(commit_type, prefix)] + ["ci", "test", "version"]
+    if args.type not in choices:
+        print(f"Invalid type: {args.type}")
+        print(f"Valid types: {choices}")
+        return
 
     commit_type = args.type
     commit_scope = args.scope
