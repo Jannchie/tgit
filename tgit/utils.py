@@ -2,7 +2,6 @@ import subprocess
 import sys
 from typing import Optional
 
-import inquirer
 import rich
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -11,6 +10,7 @@ from tgit.settings import settings
 
 console = rich.get_console()
 
+import inquirer
 
 type_emojis = {
     "feat": ":sparkles:",
@@ -57,6 +57,7 @@ def run_command(command: str):
         console.print(panel)
 
     if not settings.get("skip_confirm", False):
+
         ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
         if not ok or not ok["continue"]:
             return

@@ -124,6 +124,7 @@ def get_prev_version():
 
 
 def handle_version(args: VersionArgs):
+
     verbose = args.verbose
 
     # check if there is uncommitted changes
