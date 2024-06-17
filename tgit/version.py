@@ -412,8 +412,3 @@ def define_version_parser(subparsers):
     version_group.add_argument("-pM", "--premajor", help="premajor version", type=str)
     version_group.add_argument("version", help="version to bump to", type=str, nargs="?")
     parser_version.set_defaults(func=handle_version)
-    parser_version.set_defaults(func=handle_version)
-    parser_version.set_defaults(func=handle_version)
-    parser_version.set_defaults(func=handle_version)
-    parser_version.set_defaults(func=handle_version)
-    parser_version.set_defaults(func=handle_version)
