@@ -178,7 +178,7 @@ def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: s
     names = [
         ":rocket: Breaking Changes",
         ":sparkles: Features",
-        ":bug: Fixes",
+        ":adhesive_bandage: Fixes",
         ":art: Refactors",
         ":zap: Performance Improvements",
         ":lipstick: Styles",

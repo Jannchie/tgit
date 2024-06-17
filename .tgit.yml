@@ -2,4 +2,4 @@ commit:
   emoji: true
   types:
     - type: fix
-      emoji: ":bug:"
+      emoji: ":adhesive_bandage:"
