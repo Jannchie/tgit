@@ -219,13 +219,17 @@ def handle_changelog(args: ChangelogArgs):
     repo = git.Repo(args.path)
     from_ref = resolve_from_ref(repo, args.from_raw)
     to_ref = "HEAD" if args.to_raw is None else args.to_raw
-    is_from_tag = from_ref in repo.tags
-    if is_from_tag and to_ref == "HEAD":
-        to_ref = from_ref
-        from_ref = get_tag_by_idx(repo, -2)
-        if from_ref is None:
-            from_ref = get_first_commit_hash(repo)
-
+    if to_ref == "HEAD":
+        latest_commit = repo.head.commit
+        tags = repo.tags
+        latest_commit_tags = [tag for tag in tags if tag.commit == latest_commit]
+        if latest_commit_tags:
+            to_ref = from_ref
+            from_ref = get_tag_by_idx(repo, -2)
+            if from_ref is None:
+                from_ref = get_first_commit_hash(repo)
+        else:
+            warnings.warn("HEAD is not a tag, changelog will be generated from the last tag to HEAD.")
     from_hash = ref_to_hash(repo, from_ref)
     to_hash = ref_to_hash(repo, to_ref)
 
