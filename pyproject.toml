@@ -1,20 +1,11 @@
-
-
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[project]
+[tool.poetry]
 name = "tgit"
 version = "0.3.0"
 description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool that simplifies and streamlines your Git workflow, making version control a breeze."
-requires-python = ">=3.6"
-keywords = ["git", "tool", "changelog", "version", "commit"]
-dependencies = ["rich", "PyYAML", "inquirer"]
-license = { file = "LICENSE" }
-authors = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
-maintainers = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
+authors = ["Jannchie <jannchie@gmail.com>"]
 readme = "README.md"
+license = "MIT"
+keywords = ["git", "tool", "changelog", "version", "commit"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -25,6 +16,19 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-[project.scripts]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+rich = "^13.7.1"
+PyYAML = "^6.0.1"
+inquirer = "^3.2.5"
+
+
+[tool.poetry.scripts]
 tgit = "tgit.cli:main"
 gitt = "tgit.cli:main"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
