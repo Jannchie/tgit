@@ -22,7 +22,7 @@ python = "^3.9"
 rich = "^13.7.1"
 PyYAML = "^6.0.1"
 inquirer = "^3.2.5"
-
+gitpython = "^3.1.43"
 
 [tool.poetry.scripts]
 tgit = "tgit.cli:main"
