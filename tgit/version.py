@@ -1,10 +1,10 @@
-import difflib
 import os
 import re
 import subprocess
 import tomllib
 from copy import deepcopy
 from dataclasses import dataclass
+from difflib import Differ
 from typing import Optional
 
 import inquirer
@@ -124,18 +124,29 @@ def get_prev_version():
 
 
 def handle_version(args: VersionArgs):
-
     verbose = args.verbose
 
-    # check if there is uncommitted changes
-    # status = subprocess.run(["git", "status", "--porcelain"], capture_output=True)
-    # if status.returncode != 0:
-    #     console.print("Error getting git status")
-    #     return
-    # if status.stdout:
-    #     console.print("There are uncommitted changes, please commit or stash them first")
-    #     return
+    # 注释掉的部分
+    # check_uncommitted_changes(verbose)
 
+    prev_version = get_current_version(verbose)
+    if next_version := get_next_version(args, prev_version, verbose):
+        update_version_files(next_version, verbose)
+        execute_git_commands(args, next_version, verbose)
+
+
+def check_uncommitted_changes(verbose: int):
+    status = subprocess.run(["git", "status", "--porcelain"], capture_output=True)
+    if status.returncode != 0:
+        console.print("Error getting git status")
+        return False
+    if status.stdout:
+        console.print("There are uncommitted changes, please commit or stash them first")
+        return False
+    return True
+
+
+def get_current_version(verbose: int) -> Optional[Version]:
     if verbose > 0:
         console.print("Bumping version...")
         console.print("Getting current version...")
@@ -143,7 +154,10 @@ def handle_version(args: VersionArgs):
         prev_version = get_prev_version()
 
     console.print(f"Previous version: [cyan bold]{prev_version}")
-    # get next version
+    return prev_version
+
+
+def get_next_version(args, prev_version, verbose):
     next_version = deepcopy(prev_version)
     if not any([args.version, args.patch, args.minor, args.major, args.prepatch, args.preminor, args.premajor]):
         ans = inquirer.prompt(
@@ -167,174 +181,162 @@ def handle_version(args: VersionArgs):
             console.print(f"Selected target: [cyan bold]{target}")
 
         # bump the version
-        if target.bump in ["patch", "prepatch"]:
-            next_version.patch += 1
-        elif target.bump in ["minor", "preminor"]:
-            next_version.minor += 1
-            next_version.patch = 0
-        elif target.bump in ["major", "premajor"]:
-            next_version.major += 1
-            next_version.minor = 0
-            next_version.patch = 0
+        bump_version(target, next_version)
 
         if target.bump in ["prepatch", "preminor", "premajor"]:
-            ans = inquirer.prompt(
-                [
-                    inquirer.Text(
-                        "identifier",
-                        message="Enter the pre-release identifier",
-                        default="alpha",
-                        validate=lambda _, x: re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x).group() == x,
-                    )
-                ]
-            )
-            if not ans:
+            if release := get_pre_release_identifier():
+                next_version.release = release
+            else:
                 return
-            release = ans["identifier"]
-            next_version.release = release
         if target.bump == "custom":
+            if custom_version := get_custom_version():
+                next_version = custom_version
+            else:
+                return
+    return next_version
 
-            def validate_semver(_, x):
-                res = semver_regex.match(x)
-                return res and res.group() == x
 
-            ans = inquirer.prompt(
-                [
-                    inquirer.Text(
-                        "version",
-                        message="Enter the version",
-                        validate=validate_semver,
-                    )
-                ]
+def bump_version(target, next_version):
+    if target.bump in ["patch", "prepatch"]:
+        next_version.patch += 1
+    elif target.bump in ["minor", "preminor"]:
+        next_version.minor += 1
+        next_version.patch = 0
+    elif target.bump in ["major", "premajor"]:
+        next_version.major += 1
+        next_version.minor = 0
+        next_version.patch = 0
+
+
+def get_pre_release_identifier() -> Optional[str]:
+    ans = inquirer.prompt(
+        [
+            inquirer.Text(
+                "identifier",
+                message="Enter the pre-release identifier",
+                default="alpha",
+                validate=lambda _, x: re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x).group() == x,
             )
-            version = ans["version"]
-            next_version = Version.from_str(version)
-        next_version_str = str(next_version)
+        ]
+    )
+    return ans["identifier"] if ans else None
 
-        # edit files
 
-        if verbose > 0:
-            current_path = os.getcwd()
-            console.print(f"Current path: [cyan bold]{current_path}")
+def get_custom_version() -> Optional[Version]:
+    def validate_semver(_, x):
+        res = semver_regex.match(x)
+        return res and res.group() == x
 
-        # check package.json
-        if os.path.exists("package.json"):
-            if verbose > 0:
-                console.print("Updating package.json")
-            with open("package.json", "r") as f:
-                package_json = f.read()
-            package_json = re.sub(r'"version":\s*".*?"', f'"version": "{next_version_str}"', package_json)
+    ans = inquirer.prompt(
+        [
+            inquirer.Text(
+                "version",
+                message="Enter the version",
+                validate=validate_semver,
+            )
+        ]
+    )
+    if not ans:
+        return None
+    version = ans["version"]
+    return Version.from_str(version)
 
-            with open("package.json", "w") as f:
-                f.write(package_json)
 
-        if os.path.exists("pyproject.toml"):
-            if verbose > 0:
-                console.print("Updating pyproject.toml")
-            with open("pyproject.toml", "r") as f:
-                pyproject_toml = f.read()
-            new_pyproject_toml = re.sub(r'version\s*=\s*".*?"', f'version = "{next_version_str}"', pyproject_toml)
-            # print diff between the two files
-            old_lines = pyproject_toml.splitlines()
-            new_lines = new_pyproject_toml.splitlines()
-            diff = list(difflib.Differ().compare(old_lines, new_lines))
-            print_lines = {}
-            for i, line in enumerate(diff):
-                if line.startswith("+") or line.startswith("-"):
-                    # console.print(f"[green]{line}")
-                    for j in range(i - 3, i + 3):
-                        if j >= 0 and j < len(diff):
-                            print_lines[j] = diff[j][0]
+def update_version_files(next_version: Version, verbose: int):
+    next_version_str = str(next_version)
 
-            diffs = []
-            for i, line in enumerate(diff):
-                line = line.replace("[", "\\[")
-                line = line.strip()
-                if i in print_lines:
-                    if print_lines[i] == "+":
-                        diffs.append(f"[green]{line}[/green]")
-                    elif print_lines[i] == "-":
-                        diffs.append(f"[red]{line}[/red]")
-                    elif print_lines[i] == "?":
-                        # replace the ? with a space
-                        line = line.replace("?", " ")
-                        diffs.append(f"[yellow]{line}[/yellow]")
-                    else:
-                        diffs.append(line)
-            if diffs:
-                console.print(
-                    Panel.fit(
-                        "\n".join(diffs),
-                        border_style="cyan",
-                        title="Diff for pyproject.toml",
-                        title_align="left",
-                        padding=(1, 4),
-                    )
-                )
+    if verbose > 0:
+        current_path = os.getcwd()
+        console.print(f"Current path: [cyan bold]{current_path}")
 
-                ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
-                if not ok or not ok["continue"]:
-                    return
+    update_file("package.json", r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose)
+    update_file("pyproject.toml", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
+    update_file("setup.py", r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose)
+    update_file("Cargo.toml", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
+    update_file("VERSION", None, next_version_str, verbose)
+    update_file("VERSION.txt", None, next_version_str, verbose)
 
-                with open("pyproject.toml", "w") as f:
-                    f.write(new_pyproject_toml)
 
-        if os.path.exists("setup.py"):
-            if verbose > 0:
-                console.print("Updating setup.py")
-            with open("setup.py", "r") as f:
-                setup_py = f.read()
-            new_setup_py = re.sub(r"version=['\"].*?['\"]", f"version='{next_version_str}'", setup_py)
-            with open("setup.py", "w") as f:
-                f.write(new_setup_py)
-
-        if os.path.exists("Cargo.toml"):
-            if verbose > 0:
-                console.print("Updating Cargo.toml")
-            with open("Cargo.toml", "r") as f:
-                cargo_toml = f.read()
-            new_cargo_toml = re.sub(r"version\s*=\s*\".*?\"", f'version = "{next_version_str}"', cargo_toml)
-            with open("Cargo.toml", "w") as f:
-                f.write(new_cargo_toml)
-
-        if os.path.exists("VERSION"):
-            if verbose > 0:
-                console.print("Updating VERSION")
-            with open("VERSION", "w") as f:
-                f.write(next_version_str)
-
-        if os.path.exists("VERSION.txt"):
-            if verbose > 0:
-                console.print("Updating VERSION.txt")
-            with open("VERSION.txt", "w") as f:
-                f.write(next_version_str)
-
-        git_tag = f"v{next_version_str}"
-
-        commands = []
-        if args.no_commit:
-            if verbose > 0:
-                console.print("Skipping commit")
-        else:
-            commands.append("git add .")
-            use_emoji = settings.get("commit", {}).get("emoji", False)
-            commands.append(get_commit_command("version", None, f"{git_tag}", use_emoji=use_emoji))
-
-        if args.no_tag:
-            if verbose > 0:
-                console.print("Skipping tag")
-        else:
-            commands.append(f"git tag {git_tag}")
-
-        if args.no_push:
-            if verbose > 0:
-                console.print("Skipping push")
-        else:
-            commands.append("git push")
-            commands.append("git push --tag")
-        commands_str = "\n".join(commands)
-        run_command(commands_str)
+def update_file(filename: str, search_pattern: Optional[str], replace_text: str, verbose: int, show_diff: bool = True):
+    if not os.path.exists(filename):
         return
+    if verbose > 0:
+        console.print(f"Updating {filename}")
+    with open(filename, "r") as f:
+        content = f.read()
+    new_content = re.sub(search_pattern, replace_text, content) if search_pattern else replace_text
+    if show_diff:
+        show_file_diff(content, new_content, filename)
+    with open(filename, "w") as f:
+        f.write(new_content)
+
+
+def show_file_diff(old_content: str, new_content: str, filename: str):
+    old_lines = old_content.splitlines()
+    new_lines = new_content.splitlines()
+    diff = list(Differ().compare(old_lines, new_lines))
+    print_lines = {}
+    for i, line in enumerate(diff):
+        if line.startswith("+") or line.startswith("-"):
+            for j in range(i - 3, i + 3):
+                if j >= 0 and j < len(diff):
+                    print_lines[j] = diff[j][0]
+
+    diffs = []
+    for i, line in enumerate(diff):
+        line = line.replace("[", "\\[")
+        if i in print_lines:
+            if print_lines[i] == "+":
+                diffs.append(f"[green]{line}[/green]")
+            elif print_lines[i] == "-":
+                diffs.append(f"[red]{line}[/red]")
+            elif print_lines[i] == "?":
+                line = line.replace("?", " ")
+                line = line.replace("\n", "")
+                diffs.append(f"[yellow]{line}[/yellow]")
+            else:
+                diffs.append(line)
+    if diffs:
+        console.print(
+            Panel.fit(
+                "\n".join(diffs),
+                border_style="cyan",
+                title=f"Diff for {filename}",
+                title_align="left",
+                padding=(1, 4),
+            )
+        )
+
+        ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
+        if not ok or not ok["continue"]:
+            exit()
+
+
+def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int):
+    git_tag = f"v{next_version}"
+
+    commands = []
+    if args.no_commit:
+        if verbose > 0:
+            console.print("Skipping commit")
+    else:
+        commands.append("git add .")
+        use_emoji = settings.get("commit", {}).get("emoji", False)
+        commands.append(get_commit_command("version", None, f"{git_tag}", use_emoji=use_emoji))
+
+    if args.no_tag:
+        if verbose > 0:
+            console.print("Skipping tag")
+    else:
+        commands.append(f"git tag {git_tag}")
+
+    if args.no_push:
+        if verbose > 0:
+            console.print("Skipping push")
+    else:
+        commands.extend(("git push", "git push --tag"))
+    commands_str = "\n".join(commands)
+    run_command(commands_str)
 
 
 class VersionChoice:
@@ -364,28 +366,28 @@ class VersionChoice:
                 major=previous_version.major + 1,
                 minor=0,
                 patch=0,
-                release="RELEASE",
+                release="{RELEASE}",
             )
         elif bump == "preminor":
             self.next_version = Version(
                 major=previous_version.major,
                 minor=previous_version.minor + 1,
                 patch=0,
-                release="RELEASE",
+                release="{RELEASE}",
             )
         elif bump == "prepatch":
             self.next_version = Version(
                 major=previous_version.major,
                 minor=previous_version.minor,
                 patch=previous_version.patch + 1,
-                release="RELEASE",
+                release="{RELEASE}",
             )
         elif bump == "previous":
             self.next_version = previous_version
 
     def __str__(self):
         if "next_version" in self.__dict__:
-            return f"{self.bump} -> {self.next_version}"
+            return f"{self.bump} ({self.next_version})"
         else:
             return self.bump
 
