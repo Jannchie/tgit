@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tgit"
-version = "0.4.2"
+version = "0.4.3"
 description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool that simplifies and streamlines your Git workflow, making version control a breeze."
 authors = ["Jannchie <jannchie@gmail.com>"]
 readme = "README.md"
