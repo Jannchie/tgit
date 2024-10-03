@@ -1,11 +1,17 @@
-[tool.poetry]
+[project]
 name = "tgit"
 version = "0.4.3"
 description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool that simplifies and streamlines your Git workflow, making version control a breeze."
-authors = ["Jannchie <jannchie@gmail.com>"]
+authors = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
+dependencies = [
+    "rich",
+    "PyYAML",
+    "inquirer",
+    "gitpython",
+    "openai>=1.51.0",
+]
 readme = "README.md"
-license = "MIT"
-keywords = ["git", "tool", "changelog", "version", "commit"]
+requires-python = ">= 3.8"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -15,20 +21,23 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-
-
-[tool.poetry.dependencies]
-python = "^3.11"
-rich = "^13.7.1"
-PyYAML = "^6.0.1"
-inquirer = "^3.2.5"
-gitpython = "^3.1.43"
-
-[tool.poetry.scripts]
-tgit = "tgit.cli:main"
-gitt = "tgit.cli:main"
-
+keywords = ["git", "tool", "changelog", "version", "commit"]
+license = "MIT"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["tgit"]
+
+
+[project.scripts]
+tgit = "tgit:cli.main"
