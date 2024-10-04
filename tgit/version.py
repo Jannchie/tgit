@@ -7,9 +7,11 @@ from dataclasses import dataclass
 from difflib import Differ
 from typing import Optional
 
+import git
 import inquirer
 from rich.panel import Panel
 
+from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type
 from tgit.settings import settings
 from tgit.utils import console, get_commit_command, run_command
 
@@ -123,13 +125,22 @@ def get_prev_version():
     return Version(major=0, minor=0, patch=0)
 
 
+def get_default_bump_by_commits_dict(commits_by_type: dict[str, list[git.Commit]]) -> str:
+    if commits_by_type.get("breaking"):
+        return "major"
+    elif commits_by_type.get("feat"):
+        return "minor"
+    return "patch"
+
+
 def handle_version(args: VersionArgs):
     verbose = args.verbose
 
-    # 注释掉的部分
-    # check_uncommitted_changes(verbose)
+    # if not check_uncommitted_changes(verbose):
+    #     return
 
     prev_version = get_current_version(verbose)
+
     if next_version := get_next_version(args, prev_version, verbose):
         update_version_files(next_version, verbose)
         execute_git_commands(args, next_version, verbose)
@@ -158,16 +169,27 @@ def get_current_version(verbose: int) -> Optional[Version]:
 
 
 def get_next_version(args, prev_version, verbose):
+
+    repo = git.Repo(os.getcwd())
+    _, _, from_hash, to_hash = get_git_commits_range(repo, None, None)
+    tgit_commits = get_commits(repo, from_hash, to_hash)
+    commits_by_type = group_commits_by_type(tgit_commits)
+    default_bump = get_default_bump_by_commits_dict(commits_by_type)
+
+    choices = [VersionChoice(prev_version, bump) for bump in ["patch", "minor", "major", "prepatch", "preminor", "premajor", "previous", "custom"]]
+    default_choice = next((choice for choice in choices if choice.bump == default_bump), None)
     next_version = deepcopy(prev_version)
+
+    console.print(f"Auto bump based on commits: [cyan bold]{default_bump}")
+
     if not any([args.version, args.patch, args.minor, args.major, args.prepatch, args.preminor, args.premajor]):
         ans = inquirer.prompt(
             [
                 inquirer.List(
                     "target",
                     message="Select the version to bump to",
-                    choices=[
-                        VersionChoice(prev_version, bump) for bump in ["patch", "minor", "major", "prepatch", "preminor", "premajor", "previous", "custom"]
-                    ],
+                    choices=choices,
+                    default=default_choice,
                     carousel=True,
                 ),
             ]

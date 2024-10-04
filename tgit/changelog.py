@@ -219,6 +219,7 @@ def handle_changelog(args: ChangelogArgs):
     repo = git.Repo(args.path)
     from_raw = args.from_raw
     to_raw = args.to_raw
+    print(from_raw, to_raw)
     from_ref, to_ref, from_hash, to_hash = get_git_commits_range(repo, from_raw, to_raw)
 
     try:
@@ -247,8 +248,6 @@ def get_git_commits_range(repo: git.Repo, from_raw: str, to_raw: str):
             from_ref = get_tag_by_idx(repo, -2)
             if from_ref is None:
                 from_ref = get_first_commit_hash(repo)
-        else:
-            warnings.warn("HEAD is not a tag, changelog will be generated from the last tag to HEAD.")
     from_hash = ref_to_hash(repo, from_ref)
     to_hash = ref_to_hash(repo, to_ref)
     return from_ref, to_ref, from_hash, to_hash
