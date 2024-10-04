@@ -217,21 +217,9 @@ def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: s
 
 def handle_changelog(args: ChangelogArgs):
     repo = git.Repo(args.path)
-    from_ref = resolve_from_ref(repo, args.from_raw)
-    to_ref = "HEAD" if args.to_raw is None else args.to_raw
-    if to_ref == "HEAD":
-        latest_commit = repo.head.commit
-        tags = repo.tags
-        latest_commit_tags = [tag for tag in tags if tag.commit == latest_commit]
-        if latest_commit_tags:
-            to_ref = from_ref
-            from_ref = get_tag_by_idx(repo, -2)
-            if from_ref is None:
-                from_ref = get_first_commit_hash(repo)
-        else:
-            warnings.warn("HEAD is not a tag, changelog will be generated from the last tag to HEAD.")
-    from_hash = ref_to_hash(repo, from_ref)
-    to_hash = ref_to_hash(repo, to_ref)
+    from_raw = args.from_raw
+    to_raw = args.to_raw
+    from_ref, to_ref, from_hash, to_hash = get_git_commits_range(repo, from_raw, to_raw)
 
     try:
         origin_url = repo.remote().url
@@ -245,3 +233,22 @@ def handle_changelog(args: ChangelogArgs):
     changelog = generate_changelog(commits_by_type, from_ref, to_ref, remote_uri)
     print()
     print(changelog)
+
+
+def get_git_commits_range(repo: git.Repo, from_raw: str, to_raw: str):
+    from_ref = resolve_from_ref(repo, from_raw)
+    to_ref = "HEAD" if to_raw is None else to_raw
+    if to_ref == "HEAD":
+        latest_commit = repo.head.commit
+        tags = repo.tags
+        latest_commit_tags = [tag for tag in tags if tag.commit == latest_commit]
+        if latest_commit_tags:
+            to_ref = from_ref
+            from_ref = get_tag_by_idx(repo, -2)
+            if from_ref is None:
+                from_ref = get_first_commit_hash(repo)
+        else:
+            warnings.warn("HEAD is not a tag, changelog will be generated from the last tag to HEAD.")
+    from_hash = ref_to_hash(repo, from_ref)
+    to_hash = ref_to_hash(repo, to_ref)
+    return from_ref, to_ref, from_hash, to_hash
