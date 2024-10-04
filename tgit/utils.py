@@ -36,7 +36,7 @@ def get_commit_command(commit_type: str, commit_scope: Optional[str], commit_msg
     if commit_scope is None:
         msg = f"{commit_type}{breaking_str}: {commit_msg}"
     else:
-        msg = f"{commit_type}{breaking_str}({commit_scope}): {commit_msg}"
+        msg = f"{commit_type}({commit_scope}){breaking_str}: {commit_msg}"
     if use_emoji:
         msg = f"{type_emojis.get(commit_type, ':wrench:' )} {msg}"
     return f'git commit -m "{msg}"'

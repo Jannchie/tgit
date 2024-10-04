@@ -71,7 +71,7 @@ def get_ai_command():
         response_format=CommitData,
     )
     resp = chat_completion.choices[0].message.parsed
-    return get_commit_command(resp.type, resp.scope, resp.msg, type_emojis.get(resp.type), resp.is_breaking)
+    return get_commit_command(resp.type, resp.scope, resp.msg, settings.get("commit", {}).get("emoji", False), resp.is_breaking)
 
 
 def handle_commit(args: CommitArgs):
