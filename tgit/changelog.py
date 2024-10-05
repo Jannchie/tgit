@@ -41,6 +41,16 @@ def define_changelog_parser(subparsers):
     parser_changelog.add_argument("-f", "--from", help="From hash/tag", type=str, dest="from_raw")
     parser_changelog.add_argument("-t", "--to", help="To hash/tag", type=str, dest="to_raw")
     parser_changelog.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity", dest="verbose")
+    parser_changelog.add_argument(
+        "-o",
+        "--output",
+        help="output file",
+        type=str,
+        dest="output",
+        nargs="?",  # 表示参数值是可选的
+        const="CHANGELOG.md",
+        default=None,
+    )
     parser_changelog.add_argument("path", help="repository path", type=str, nargs="?", default=".")
     parser_changelog.set_defaults(func=handle_changelog)
 
@@ -51,6 +61,7 @@ class ChangelogArgs:
     to_raw: str
     verbose: int
     path: str
+    output: str
 
 
 def get_simple_hash(repo: git.Repo, hash, length=7):
@@ -217,11 +228,32 @@ def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: s
 
 def handle_changelog(args: ChangelogArgs):
     repo = git.Repo(args.path)
+
+    if args.output:
+        output_file = open(args.output, "w")
+        # 获取所有 tags
+        tags = repo.tags
+        # 获取第一个 commit
+        first_commit = get_first_commit_hash(repo)
+        points = [first_commit] + [tag.name for tag in tags]
+        points.reverse()
+        changelogs = ""
+        for i in range(len(points) - 1):
+            to_ref = points[i]
+            from_ref = points[i + 1]
+            changelog = get_changelog_by_range(repo, from_ref, to_ref)
+            changelogs += changelog
+        output_file.write(changelogs.strip("\n") + "\n")
     from_raw = args.from_raw
     to_raw = args.to_raw
-    print(from_raw, to_raw)
-    from_ref, to_ref, from_hash, to_hash = get_git_commits_range(repo, from_raw, to_raw)
 
+    from_ref, to_ref = get_git_commits_range(repo, from_raw, to_raw)
+    changelog = get_changelog_by_range(repo, from_ref, to_ref)
+    print()
+    print(changelog)
+
+
+def get_changelog_by_range(repo: git.Repo, from_ref: str, to_ref: str):
     try:
         origin_url = repo.remote().url
         remote_uri = get_remote_uri(origin_url)
@@ -229,11 +261,9 @@ def handle_changelog(args: ChangelogArgs):
         warnings.warn("Origin not found, some of the link generation functions could not be enabled.")
         remote_uri = None
 
-    tgit_commits = get_commits(repo, from_hash, to_hash)
+    tgit_commits = get_commits(repo, from_ref, to_ref)
     commits_by_type = group_commits_by_type(tgit_commits)
-    changelog = generate_changelog(commits_by_type, from_ref, to_ref, remote_uri)
-    print()
-    print(changelog)
+    return generate_changelog(commits_by_type, from_ref, to_ref, remote_uri)
 
 
 def get_git_commits_range(repo: git.Repo, from_raw: str, to_raw: str):
@@ -248,6 +278,5 @@ def get_git_commits_range(repo: git.Repo, from_raw: str, to_raw: str):
             from_ref = get_tag_by_idx(repo, -2)
             if from_ref is None:
                 from_ref = get_first_commit_hash(repo)
-    from_hash = ref_to_hash(repo, from_ref)
-    to_hash = ref_to_hash(repo, to_ref)
-    return from_ref, to_ref, from_hash, to_hash
+
+    return from_ref, to_ref

@@ -5,7 +5,7 @@ description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool t
 authors = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
 dependencies = ["rich", "PyYAML", "inquirer", "gitpython", "openai>=1.51.0"]
 readme = "README.md"
-requires-python = ">= 3.8"
+requires-python = ">= 3.11"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
