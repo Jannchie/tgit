@@ -202,7 +202,7 @@ def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: s
             title = f"### {names[i]}\n\n"
             out_str += title
             # Sort commits by scope, if scope is None, put it to last
-            commits.sort(key=lambda c: "zzzzz" if c.scope is None else c.scope)
+            commits.sort(key=lambda c: c.scope or "zzzzz")
             for commit in commits:
 
                 authors_str = format_names([f"[{a.name}](mailto:{a.email})" for a in commit.authors])

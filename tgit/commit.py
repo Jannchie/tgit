@@ -51,12 +51,15 @@ class CommitData(BaseModel):
     is_breaking: bool
 
 
-def get_ai_command():
+def get_ai_command() -> str | None:
     client = OpenAI()
     # 获取用户执行该脚本所在的目录
     current_dir = os.getcwd()
     repo = git.Repo(current_dir, search_parent_directories=True)
-    diff = repo.git.diff("HEAD")
+    diff = repo.git.diff("--cached")
+    if not diff:
+        print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
+        return
     types = "|".join(commit_type)
     chat_completion = client.beta.chat.completions.parse(
         messages=[
@@ -82,6 +85,8 @@ def handle_commit(args: CommitArgs):
 
     if args.ai:
         command = get_ai_command()
+        if not command:
+            return
     else:
         messages = args.message
         if len(messages) == 0:
