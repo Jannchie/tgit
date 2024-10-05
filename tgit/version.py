@@ -171,8 +171,8 @@ def get_current_version(verbose: int) -> Optional[Version]:
 def get_next_version(args, prev_version, verbose):
 
     repo = git.Repo(os.getcwd())
-    _, _, from_hash, to_hash = get_git_commits_range(repo, None, None)
-    tgit_commits = get_commits(repo, from_hash, to_hash)
+    from_ref, to_ref = get_git_commits_range(repo, None, None)
+    tgit_commits = get_commits(repo, from_ref, to_ref)
     commits_by_type = group_commits_by_type(tgit_commits)
     default_bump = get_default_bump_by_commits_dict(commits_by_type)
 
