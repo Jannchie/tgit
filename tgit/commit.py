@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import git
-from openai import OpenAI
+from openai import AuthenticationError, OpenAI
 from pydantic import BaseModel
 from rich import print
 
@@ -61,18 +61,22 @@ def get_ai_command() -> str | None:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
         return
     types = "|".join(commit_type)
-    chat_completion = client.beta.chat.completions.parse(
-        messages=[
-            {
-                "role": "system",
-                "content": f"You are a git bot. You should read the diff and suggest a commit message. The type should be one of {types}. The message should in all lowercase.",
-            },
-            {"role": "user", "content": diff},
-        ],
-        model="gpt-4o",
-        max_tokens=200,
-        response_format=CommitData,
-    )
+    try:
+        chat_completion = client.beta.chat.completions.parse(
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are a git bot. You should read the diff and suggest a commit message. The type should be one of {types}. The message should in all lowercase.",
+                },
+                {"role": "user", "content": diff},
+            ],
+            model="gpt-4o",
+            max_tokens=200,
+            response_format=CommitData,
+        )
+    except AuthenticationError:
+        print("[red]Could not authenticate with OpenAI, please check your API key.[/red]")
+        return
     resp = chat_completion.choices[0].message.parsed
     return get_commit_command(resp.type, resp.scope, resp.msg, settings.get("commit", {}).get("emoji", False), resp.is_breaking)
 
