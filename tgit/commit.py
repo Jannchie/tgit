@@ -55,7 +55,11 @@ def get_ai_command() -> str | None:
     client = OpenAI()
     # 获取用户执行该脚本所在的目录
     current_dir = os.getcwd()
-    repo = git.Repo(current_dir, search_parent_directories=True)
+    try:
+        repo = git.Repo(current_dir, search_parent_directories=True)
+    except git.InvalidGitRepositoryError:
+        print("[yellow]Not a git repository[/yellow]")
+        return
     diff = repo.git.diff("--cached")
     if not diff:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
