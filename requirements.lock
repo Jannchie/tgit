@@ -63,7 +63,7 @@ pyyaml==6.0.2
     # via tgit
 readchar==4.2.0
     # via inquirer
-rich==13.9.1
+rich==13.9.2
     # via tgit
 runs==1.2.2
     # via editor

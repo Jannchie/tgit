@@ -3,7 +3,13 @@ name = "tgit"
 version = "0.7.1"
 description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool that simplifies and streamlines your Git workflow, making version control a breeze."
 authors = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
-dependencies = ["rich", "PyYAML", "inquirer", "gitpython", "openai>=1.51.0"]
+dependencies = [
+    "rich>=13.9.2",
+    "pyyaml>=6.0.2",
+    "inquirer>=3.4.0",
+    "gitpython>=3.1.43",
+    "openai>=1.51.0",
+]
 readme = "README.md"
 requires-python = ">= 3.11"
 classifiers = [
