@@ -70,7 +70,7 @@ def get_ai_command() -> str | None:
             messages=[
                 {
                     "role": "system",
-                    "content": f"You are a git bot. You should read the diff and suggest a commit message. The type should be one of {types}. The message should in all lowercase.",
+                    "content": f"You are a git bot. You should read the diff and suggest a commit message. The type should be one of {types}. The message should in all lowercase. The message should cover all the changes in the diff.",
                 },
                 {"role": "user", "content": diff},
             ],
