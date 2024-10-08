@@ -12,7 +12,7 @@ from rich import print
 from tgit.settings import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
 
-commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
+commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "wip"]
 
 
 def define_commit_parser(subparsers: argparse._SubParsersAction):
@@ -108,7 +108,7 @@ def handle_commit(args: CommitArgs):
             commit_scope = None
             commit_msg = messages[1]
         if commit_type not in choices:
-            print(f"Invalid type: {args.type}")
+            print(f"Invalid type: {commit_type}")
             print(f"Valid types: {choices}")
             return
         use_emoji = args.emoji
