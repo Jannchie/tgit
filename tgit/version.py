@@ -11,7 +11,8 @@ import git
 import inquirer
 from rich.panel import Panel
 
-from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type
+from tgit.changelog import (get_commits, get_git_commits_range,
+                            group_commits_by_type)
 from tgit.settings import settings
 from tgit.utils import console, get_commit_command, run_command
 

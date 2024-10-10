@@ -70,7 +70,11 @@ def get_ai_command() -> str | None:
             messages=[
                 {
                     "role": "system",
-                    "content": f"You are a git bot. You should read the diff and suggest a commit message. The type should be one of {types}. The message should in all lowercase. The message should cover all the changes in the diff.",
+                    "content": "You are a git bot. You should read the diff and suggest a commit message. "
+                    + "Only if the changes are not compatible with previous versions (change the API, break the build, etc.), you should suggest a breaking change. "
+                    + f"The type should be one of {types}. The message should in all lowercase. And it shoud be short, in just few words. "
+                    + "The scope should be short, it is better to be a single word. "
+                    + "The message should cover all the changes in the diff. It should be in present tense. If the change has many parts, you can && to separate them, and you should also shorten the message. ",
                 },
                 {"role": "user", "content": diff},
             ],
