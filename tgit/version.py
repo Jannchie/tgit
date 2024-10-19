@@ -11,8 +11,7 @@ import git
 import inquirer
 from rich.panel import Panel
 
-from tgit.changelog import (get_commits, get_git_commits_range,
-                            group_commits_by_type)
+from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type
 from tgit.settings import settings
 from tgit.utils import console, get_commit_command, run_command
 
@@ -64,6 +63,60 @@ class VersionArgs:
     prepatch: str
     preminor: str
     premajor: str
+    recursive: bool
+
+
+class VersionChoice:
+    def __init__(self, previous_version: Version, bump: str):
+        self.previous_version = previous_version
+        self.bump = bump
+        if bump == "major":
+            self.next_version = Version(
+                major=previous_version.major + 1,
+                minor=0,
+                patch=0,
+            )
+        elif bump == "minor":
+            self.next_version = Version(
+                major=previous_version.major,
+                minor=previous_version.minor + 1,
+                patch=0,
+            )
+        elif bump == "patch":
+            self.next_version = Version(
+                major=previous_version.major,
+                minor=previous_version.minor,
+                patch=previous_version.patch + 1,
+            )
+        elif bump == "premajor":
+            self.next_version = Version(
+                major=previous_version.major + 1,
+                minor=0,
+                patch=0,
+                release="{RELEASE}",
+            )
+        elif bump == "preminor":
+            self.next_version = Version(
+                major=previous_version.major,
+                minor=previous_version.minor + 1,
+                patch=0,
+                release="{RELEASE}",
+            )
+        elif bump == "prepatch":
+            self.next_version = Version(
+                major=previous_version.major,
+                minor=previous_version.minor,
+                patch=previous_version.patch + 1,
+                release="{RELEASE}",
+            )
+        elif bump == "previous":
+            self.next_version = previous_version
+
+    def __str__(self):
+        if "next_version" in self.__dict__:
+            return f"{self.bump} ({self.next_version})"
+        else:
+            return self.bump
 
 
 def get_prev_version():
@@ -141,9 +194,10 @@ def handle_version(args: VersionArgs):
     #     return
 
     prev_version = get_current_version(verbose)
+    reclusive = args.recursive
 
     if next_version := get_next_version(args, prev_version, verbose):
-        update_version_files(next_version, verbose)
+        update_version_files(next_version, reclusive, verbose)
         execute_git_commands(args, next_version, verbose)
 
 
@@ -219,7 +273,7 @@ def get_next_version(args, prev_version, verbose):
     return next_version
 
 
-def bump_version(target, next_version):
+def bump_version(target: VersionChoice, next_version: Version):
     if target.bump in ["patch", "prepatch"]:
         next_version.patch += 1
     elif target.bump in ["minor", "preminor"]:
@@ -265,13 +319,38 @@ def get_custom_version() -> Optional[Version]:
     return Version.from_str(version)
 
 
-def update_version_files(next_version: Version, verbose: int):
+def update_version_files(next_version: Version, reclusive: bool, verbose: int):
     next_version_str = str(next_version)
 
+    current_path = os.getcwd()
     if verbose > 0:
-        current_path = os.getcwd()
         console.print(f"Current path: [cyan bold]{current_path}")
 
+    if reclusive:
+        # 获取当前目录及其子目录下，所有名称在上述列表中的文件
+        # 使用os.walk()函数，可以遍历指定目录下的所有子目录和文件
+        filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt"]
+        for root, _, files in os.walk(current_path):
+            for file in files:
+                if file in filenames:
+                    file_path = os.path.join(root, file)
+                    if file == "package.json":
+                        update_file(file_path, r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=False)
+                    elif file == "pyproject.toml":
+                        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+                    elif file == "setup.py":
+                        update_file(file_path, r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=False)
+                    elif file == "Cargo.toml":
+                        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+                    elif file == "VERSION":
+                        update_file(file_path, None, next_version_str, verbose, show_diff=False)
+                    elif file == "VERSION.txt":
+                        update_file(file_path, None, next_version_str, verbose, show_diff=False)
+    else:
+        update_file_in_root(next_version_str, verbose)
+
+
+def update_file_in_root(next_version_str, verbose):
     update_file("package.json", r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose)
     update_file("pyproject.toml", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
     update_file("setup.py", r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose)
@@ -362,59 +441,6 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
     run_command(commands_str)
 
 
-class VersionChoice:
-    def __init__(self, previous_version: Version, bump: str):
-        self.previous_version = previous_version
-        self.bump = bump
-        if bump == "major":
-            self.next_version = Version(
-                major=previous_version.major + 1,
-                minor=0,
-                patch=0,
-            )
-        elif bump == "minor":
-            self.next_version = Version(
-                major=previous_version.major,
-                minor=previous_version.minor + 1,
-                patch=0,
-            )
-        elif bump == "patch":
-            self.next_version = Version(
-                major=previous_version.major,
-                minor=previous_version.minor,
-                patch=previous_version.patch + 1,
-            )
-        elif bump == "premajor":
-            self.next_version = Version(
-                major=previous_version.major + 1,
-                minor=0,
-                patch=0,
-                release="{RELEASE}",
-            )
-        elif bump == "preminor":
-            self.next_version = Version(
-                major=previous_version.major,
-                minor=previous_version.minor + 1,
-                patch=0,
-                release="{RELEASE}",
-            )
-        elif bump == "prepatch":
-            self.next_version = Version(
-                major=previous_version.major,
-                minor=previous_version.minor,
-                patch=previous_version.patch + 1,
-                release="{RELEASE}",
-            )
-        elif bump == "previous":
-            self.next_version = previous_version
-
-    def __str__(self):
-        if "next_version" in self.__dict__:
-            return f"{self.bump} ({self.next_version})"
-        else:
-            return self.bump
-
-
 def define_version_parser(subparsers):
     parser_version = subparsers.add_parser("version", help="bump version of the project")
     parser_version.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity")
@@ -422,8 +448,8 @@ def define_version_parser(subparsers):
     parser_version.add_argument("--no-tag", action="store_true", help="do not create a tag")
     parser_version.add_argument("--no-push", action="store_true", help="do not push the changes")
 
-    # TODO: add option to bump all packages in the monorepo
-    # parser_version.add_argument("-r", "--recursive", action="store_true", help="bump all packages in the monorepo")
+    # add option to bump all packages in the monorepo
+    parser_version.add_argument("-r", "--recursive", action="store_true", help="bump all packages in the monorepo")
 
     # create a mutually exclusive group
     version_group = parser_version.add_mutually_exclusive_group()
@@ -436,4 +462,5 @@ def define_version_parser(subparsers):
     version_group.add_argument("-pm", "--preminor", help="preminor version", type=str)
     version_group.add_argument("-pM", "--premajor", help="premajor version", type=str)
     version_group.add_argument("version", help="version to bump to", type=str, nargs="?")
+
     parser_version.set_defaults(func=handle_version)
