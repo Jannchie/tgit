@@ -4,6 +4,7 @@ import importlib.metadata
 import rich
 import rich.traceback
 
+from tgit.add import define_add_parser
 from tgit.changelog import define_changelog_parser
 from tgit.commit import define_commit_parser
 from tgit.utils import console
@@ -24,6 +25,7 @@ def main():
     define_commit_parser(subparsers)
     define_version_parser(subparsers)
     define_changelog_parser(subparsers)
+    define_add_parser(subparsers)
 
     args = parser.parse_args()
     handle(parser, args)

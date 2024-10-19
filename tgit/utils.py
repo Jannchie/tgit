@@ -42,6 +42,15 @@ def get_commit_command(commit_type: str, commit_scope: Optional[str], commit_msg
     return f'git commit -m "{msg}"'
 
 
+def simple_run_command(command: str):
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if stderr != b"" and process.returncode != 0:
+        sys.stderr.write(stderr.decode())
+    if stdout != b"":
+        sys.stdout.write(stdout.decode())
+
+
 def run_command(command: str):
     if settings.get("show_command", True):
         panel = Panel.fit(
