@@ -17,7 +17,7 @@ ansicon==1.89.0
 anyio==4.6.0
     # via httpx
     # via openai
-black==24.8.0
+black==24.10.0
 blessed==1.20.0
     # via inquirer
 certifi==2024.8.30
@@ -58,7 +58,7 @@ mdurl==0.1.2
     # via markdown-it-py
 mypy-extensions==1.0.0
     # via black
-openai==1.51.0
+openai==1.52.0
     # via tgit
 packaging==24.1
     # via black

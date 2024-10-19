@@ -51,7 +51,7 @@ markdown-it-py==3.0.0
     # via rich
 mdurl==0.1.2
     # via markdown-it-py
-openai==1.51.0
+openai==1.52.0
     # via tgit
 pydantic==2.9.2
     # via openai

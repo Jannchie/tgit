@@ -8,7 +8,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "inquirer>=3.4.0",
     "gitpython>=3.1.43",
-    "openai>=1.51.0",
+    "openai>=1.52.0",
 ]
 readme = { content-type = "text/markdown", file = "README.md" }
 requires-python = ">= 3.11"
@@ -30,7 +30,7 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = ["black>=24.8.0", "isort>=5.13.2"]
+dev-dependencies = ["black>=24.10.0", "isort>=5.13.2"]
 
 [tool.black]
 line-length = 160
