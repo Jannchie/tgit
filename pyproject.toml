@@ -1,6 +1,6 @@
 [project]
 name = "tgit"
-version = "0.8.1"
+version = "0.9.0"
 description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool that simplifies and streamlines your Git workflow, making version control a breeze."
 authors = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
 dependencies = [
