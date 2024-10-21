@@ -317,7 +317,7 @@ def update_version_files(args: VersionArgs, next_version: Version, reclusive: bo
     if reclusive:
         # 获取当前目录及其子目录下，所有名称在上述列表中的文件
         # 使用os.walk()函数，可以遍历指定目录下的所有子目录和文件
-        filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt"]
+        filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts"]
         # 需要忽略 node_modules 目录
         for root, dirs, files in os.walk(current_path):
             if "node_modules" in dirs:
@@ -328,6 +328,8 @@ def update_version_files(args: VersionArgs, next_version: Version, reclusive: bo
                     if file == "package.json":
                         update_file(file_path, r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=False)
                     elif file == "pyproject.toml":
+                        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+                    elif file == "build.gradle.kts":
                         update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
                     elif file == "setup.py":
                         update_file(file_path, r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=False)
@@ -346,6 +348,7 @@ def update_file_in_root(next_version_str, verbose):
     update_file("pyproject.toml", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
     update_file("setup.py", r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose)
     update_file("Cargo.toml", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
+    update_file("build.gradle.kts", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
     update_file("VERSION", None, next_version_str, verbose)
     update_file("VERSION.txt", None, next_version_str, verbose)
 
