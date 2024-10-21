@@ -64,6 +64,8 @@ class VersionArgs:
     preminor: str
     premajor: str
     recursive: bool
+    custom: str
+    path: str
 
 
 class VersionChoice:
@@ -119,20 +121,20 @@ class VersionChoice:
             return self.bump
 
 
-def get_prev_version():
+def get_prev_version(path: str) -> Version:
     # first, check if there is a file with the version, such as a package.json, pyproject.toml, etc.
 
     # for nodejs
-    if os.path.exists("package.json"):
+    if os.path.exists(os.path.join(path, "package.json")):
         import json
 
-        with open("package.json") as f:
+        with open(os.path.join(path, "package.json")) as f:
             json_data = json.load(f)
             if version := json_data.get("version"):
                 return Version.from_str(version)
-    elif os.path.exists("pyproject.toml"):
+    elif os.path.exists(os.path.join(path, "pyproject.toml")):
 
-        with open("pyproject.toml", "rb") as f:
+        with open(os.path.join(path, "pyproject.toml"), "rb") as f:
             toml_data = tomllib.load(f)
             if version := toml_data.get("project", {}).get("version"):
                 return Version.from_str(version)
@@ -143,32 +145,30 @@ def get_prev_version():
             if version := toml_data.get("tool", {}).get("setuptools", {}).get("setup_requires", {}).get("version"):
                 return Version.from_str(version)
 
-    elif os.path.exists("setup.py"):
-        with open("setup.py") as f:
+    elif os.path.exists(os.path.join(path, "setup.py")):
+        with open(os.path.join(path, "setup.py")) as f:
             setup_data = f.read()
             if res := re.search(r"version=['\"]([^'\"]+)['\"]", setup_data):
                 return Version.from_str(res[1])
 
-    elif os.path.exists(
-        "Cargo.toml",
-    ):
-        with open("Cargo.toml", "rb") as f:
+    elif os.path.exists(os.path.join(path, "Cargo.toml")):
+        with open(os.path.join(path, "Cargo.toml"), "rb") as f:
             cargo_data = tomllib.load(f)
             if version := cargo_data.get("package", {}).get("version"):
                 return Version.from_str(version)
 
-    elif os.path.exists("VERSION"):
-        with open("VERSION") as f:
+    elif os.path.exists(os.path.join(path, "VERSION")):
+        with open(os.path.join(path, "VERSION")) as f:
             version = f.read().strip()
             return Version.from_str(version)
 
-    elif os.path.exists("VERSION.txt"):
-        with open("VERSION.txt") as f:
+    elif os.path.exists(os.path.join(path, "VERSION.txt")):
+        with open(os.path.join(path, "VERSION.txt")) as f:
             version = f.read().strip()
             return Version.from_str(version)
 
     # if not, check if there is a git tag with the version
-    status = subprocess.run(["git", "tag"], capture_output=True)
+    status = subprocess.run(["git", "tag"], capture_output=True, cwd=path)
     if status.returncode == 0:
         tags = status.stdout.decode().split("\n")
         for tag in tags:
@@ -189,43 +189,31 @@ def get_default_bump_by_commits_dict(commits_by_type: dict[str, list[git.Commit]
 
 def handle_version(args: VersionArgs):
     verbose = args.verbose
-
-    # if not check_uncommitted_changes(verbose):
-    #     return
-
-    prev_version = get_current_version(verbose)
+    path = args.path
+    prev_version = get_current_version(path, verbose)
     reclusive = args.recursive
 
     if next_version := get_next_version(args, prev_version, verbose):
-        update_version_files(next_version, reclusive, verbose)
+        update_version_files(args, next_version, reclusive, verbose)
         execute_git_commands(args, next_version, verbose)
 
 
-def check_uncommitted_changes(verbose: int):
-    status = subprocess.run(["git", "status", "--porcelain"], capture_output=True)
-    if status.returncode != 0:
-        console.print("Error getting git status")
-        return False
-    if status.stdout:
-        console.print("There are uncommitted changes, please commit or stash them first")
-        return False
-    return True
-
-
-def get_current_version(verbose: int) -> Optional[Version]:
+def get_current_version(path: str, verbose: int) -> Optional[Version]:
     if verbose > 0:
         console.print("Bumping version...")
         console.print("Getting current version...")
     with console.status("[bold green]Getting current version..."):
-        prev_version = get_prev_version()
+        prev_version = get_prev_version(path)
 
     console.print(f"Previous version: [cyan bold]{prev_version}")
     return prev_version
 
 
-def get_next_version(args, prev_version, verbose):
+def get_next_version(args: VersionArgs, prev_version: Version, verbose: int) -> Optional[Version]:
 
-    repo = git.Repo(os.getcwd())
+    repo = git.Repo(args.path)
+    if verbose > 0:
+        console.print("Getting commits...")
     from_ref, to_ref = get_git_commits_range(repo, None, None)
     tgit_commits = get_commits(repo, from_ref, to_ref)
     commits_by_type = group_commits_by_type(tgit_commits)
@@ -237,7 +225,7 @@ def get_next_version(args, prev_version, verbose):
 
     console.print(f"Auto bump based on commits: [cyan bold]{default_bump}")
 
-    if not any([args.version, args.patch, args.minor, args.major, args.prepatch, args.preminor, args.premajor]):
+    if not any([args.custom, args.patch, args.minor, args.major, args.prepatch, args.preminor, args.premajor]):
         ans = inquirer.prompt(
             [
                 inquirer.List(
@@ -319,10 +307,10 @@ def get_custom_version() -> Optional[Version]:
     return Version.from_str(version)
 
 
-def update_version_files(next_version: Version, reclusive: bool, verbose: int):
+def update_version_files(args: VersionArgs, next_version: Version, reclusive: bool, verbose: int):
     next_version_str = str(next_version)
 
-    current_path = os.getcwd()
+    current_path = os.path.abspath(args.path)
     if verbose > 0:
         console.print(f"Current path: [cyan bold]{current_path}")
 
@@ -330,7 +318,10 @@ def update_version_files(next_version: Version, reclusive: bool, verbose: int):
         # 获取当前目录及其子目录下，所有名称在上述列表中的文件
         # 使用os.walk()函数，可以遍历指定目录下的所有子目录和文件
         filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt"]
-        for root, _, files in os.walk(current_path):
+        # 需要忽略 node_modules 目录
+        for root, dirs, files in os.walk(current_path):
+            if "node_modules" in dirs:
+                dirs.remove("node_modules")
             for file in files:
                 if file in filenames:
                     file_path = os.path.join(root, file)
@@ -461,6 +452,7 @@ def define_version_parser(subparsers):
     version_group.add_argument("-pp", "--prepatch", help="prepatch version", type=str)
     version_group.add_argument("-pm", "--preminor", help="preminor version", type=str)
     version_group.add_argument("-pM", "--premajor", help="premajor version", type=str)
-    version_group.add_argument("version", help="version to bump to", type=str, nargs="?")
+    version_group.add_argument("--custom", help="custom version to bump to", action="store_true")
+    version_group.add_argument("path", help="path to the file to update", nargs="?", default=".")
 
     parser_version.set_defaults(func=handle_version)
