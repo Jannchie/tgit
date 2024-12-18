@@ -1,21 +1,27 @@
 import argparse
+import importlib.resources
 import itertools
-import os
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
 
 import git
+from jinja2 import Environment, FileSystemLoader
 from openai import AuthenticationError, OpenAI
 from pydantic import BaseModel
-from rich import print
+from rich import print  # noqa: A004
 
 from tgit.settings import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
 
-commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "wip"]
+with importlib.resources.path("tgit", "prompts") as prompt_path:
+    env = Environment(loader=FileSystemLoader(prompt_path), autoescape=True)
+
+commit_types = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "wip"]
+commit_file = "commit.txt"
+commit_prompt_template = env.get_template("commit.txt")
 
 
-def define_commit_parser(subparsers: argparse._SubParsersAction):
+def define_commit_parser(subparsers: argparse._SubParsersAction) -> None:
     commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
     commit_settings = settings.get("commit", {})
     types_settings = commit_settings.get("types", [])
@@ -26,7 +32,7 @@ def define_commit_parser(subparsers: argparse._SubParsersAction):
     parser_commit = subparsers.add_parser("commit", help="commit changes following the conventional commit format")
     parser_commit.add_argument(
         "message",
-        help="commit message, the first word should be the type, if the message is more than two parts, the second part should be the scope",
+        help="the first word should be the type, if the message is more than two parts, the second part should be the scope",
         nargs="*",
     )
     parser_commit.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity")
@@ -46,35 +52,30 @@ class CommitArgs:
 
 class CommitData(BaseModel):
     type: str
-    scope: Optional[str]
+    scope: str | None
     msg: str
     is_breaking: bool
 
 
 def get_ai_command() -> str | None:
     client = OpenAI()
-    # 获取用户执行该脚本所在的目录
-    current_dir = os.getcwd()
+    current_dir = Path.cwd()
     try:
         repo = git.Repo(current_dir, search_parent_directories=True)
     except git.InvalidGitRepositoryError:
         print("[yellow]Not a git repository[/yellow]")
-        return
+        return None
     diff = repo.git.diff("--cached")
     if not diff:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
-        return
-    types = "|".join(commit_type)
+        return None
+    types = "|".join(commit_types)
     try:
         chat_completion = client.beta.chat.completions.parse(
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a git bot. You should read the diff and suggest a commit message. "
-                    + "Only if the changes are not compatible with previous versions (change the API, break the build, etc.), you should suggest a breaking change. "
-                    + f"The type should be one of {types}. The message should in all lowercase. And it shoud be short, in just few words. "
-                    + "The scope should be short, it is better to be a single word. "
-                    + "The message should cover all the changes in the diff. It should be in present tense. If the change has many parts, you can && to separate them, and you should also shorten the message. ",
+                    "content": commit_prompt_template.render(types=types),
                 },
                 {"role": "user", "content": diff},
             ],
@@ -84,16 +85,14 @@ def get_ai_command() -> str | None:
         )
     except AuthenticationError:
         print("[red]Could not authenticate with OpenAI, please check your API key.[/red]")
-        return
+        return None
     resp = chat_completion.choices[0].message.parsed
     return get_commit_command(resp.type, resp.scope, resp.msg, settings.get("commit", {}).get("emoji", False), resp.is_breaking)
 
 
-def handle_commit(args: CommitArgs):
-
-    global commit_type
+def handle_commit(args: CommitArgs) -> None:
     prefix = ["", "!"]
-    choices = ["".join(data) for data in itertools.product(commit_type, prefix)] + ["ci", "test", "version"]
+    choices = ["".join(data) for data in itertools.product(commit_types, prefix)] + ["ci", "test", "version"]
 
     if args.ai:
         command = get_ai_command()
@@ -105,7 +104,7 @@ def handle_commit(args: CommitArgs):
             print("Please provide a commit message, or use --ai to generate by AI")
             return
         commit_type = messages[0]
-        if len(messages) > 2:
+        if len(messages) > 2:  # noqa: PLR2004
             commit_scope = messages[1]
             commit_msg = " ".join(messages[2:])
         else:
@@ -116,8 +115,8 @@ def handle_commit(args: CommitArgs):
             print(f"Valid types: {choices}")
             return
         use_emoji = args.emoji
-        if use_emoji == False:
+        if use_emoji is False:
             use_emoji = settings.get("commit", {}).get("emoji", False)
         is_breaking = args.breaking
-        command = get_commit_command(commit_type, commit_scope, commit_msg, use_emoji, is_breaking)
+        command = get_commit_command(commit_types, commit_scope, commit_msg, use_emoji, is_breaking)
     run_command(command)

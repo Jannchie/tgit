@@ -9,6 +9,7 @@ dependencies = [
     "inquirer>=3.4.0",
     "gitpython>=3.1.43",
     "openai>=1.52.0",
+    "jinja2>=3.1.4",
 ]
 readme = { content-type = "text/markdown", file = "README.md" }
 requires-python = ">= 3.11"
@@ -28,10 +29,6 @@ license = "MIT"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.rye]
-managed = true
-dev-dependencies = ["black>=24.10.0", "isort>=5.13.2"]
-
 [tool.black]
 line-length = 160
 
@@ -43,3 +40,19 @@ packages = ["tgit"]
 
 [project.scripts]
 tgit = "tgit:cli.main"
+
+[tool.ruff]
+line-length = 140
+select = ["ALL"]
+
+ignore = [
+    "PGH",
+    "RUF003",
+    "BLE001",
+    "ERA001",
+    "FIX002",
+    "TD002",
+    "TD003",
+    "D",
+    "TRY300",
+]

@@ -13,7 +13,7 @@ from tgit.version import define_version_parser
 rich.traceback.install()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="TGIT cli",
         prog="tgit",
@@ -31,7 +31,7 @@ def main():
     handle(parser, args)
 
 
-def handle(parser, args):
+def handle(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     if hasattr(args, "func"):
         args.func(args)
     elif args.version:
