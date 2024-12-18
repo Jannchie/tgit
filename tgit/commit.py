@@ -87,7 +87,13 @@ def get_ai_command() -> str | None:
         print("[red]Could not authenticate with OpenAI, please check your API key.[/red]")
         return None
     resp = chat_completion.choices[0].message.parsed
-    return get_commit_command(resp.type, resp.scope, resp.msg, settings.get("commit", {}).get("emoji", False), resp.is_breaking)
+    return get_commit_command(
+        resp.type,
+        resp.scope,
+        resp.msg,
+        use_emoji=settings.get("commit", {}).get("emoji", False),
+        is_breaking=resp.is_breaking,
+    )
 
 
 def handle_commit(args: CommitArgs) -> None:
@@ -118,5 +124,5 @@ def handle_commit(args: CommitArgs) -> None:
         if use_emoji is False:
             use_emoji = settings.get("commit", {}).get("emoji", False)
         is_breaking = args.breaking
-        command = get_commit_command(commit_types, commit_scope, commit_msg, use_emoji, is_breaking)
+        command = get_commit_command(commit_type, commit_scope, commit_msg, use_emoji=use_emoji, is_breaking=is_breaking)
     run_command(command)

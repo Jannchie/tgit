@@ -26,7 +26,7 @@ type_emojis = {
 }
 
 
-def get_commit_command(commit_type: str, commit_scope: Optional[str], commit_msg: str, use_emoji=False, is_breaking=False):
+def get_commit_command(commit_type: str, commit_scope: str | None, commit_msg: str, *, use_emoji: bool = False, is_breaking: bool = False):
     if commit_type.endswith("!"):
         commit_type = commit_type[:-1]
         is_breaking = True
@@ -42,8 +42,8 @@ def get_commit_command(commit_type: str, commit_scope: Optional[str], commit_msg
     return f'git commit -m "{msg}"'
 
 
-def simple_run_command(command: str):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def simple_run_command(command: str) -> None:
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # noqa: S602
     stdout, stderr = process.communicate()
     if stderr != b"" and process.returncode != 0:
         sys.stderr.write(stderr.decode())
@@ -51,7 +51,7 @@ def simple_run_command(command: str):
         sys.stdout.write(stdout.decode())
 
 
-def run_command(command: str):
+def run_command(command: str) -> None:
     if settings.get("show_command", True):
         panel = Panel.fit(
             Syntax(command, "bash", line_numbers=False, theme="github-dark", background_color="default", word_wrap=True),
@@ -62,11 +62,10 @@ def run_command(command: str):
             title_align="left",
             subtitle_align="right",
         )
-        print()
+        print()  # noqa: T201
         console.print(panel)
 
     if not settings.get("skip_confirm", False):
-
         ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
         if not ok or not ok["continue"]:
             return
