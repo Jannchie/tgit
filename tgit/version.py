@@ -126,18 +126,36 @@ class VersionChoice:
 
 
 def get_prev_version(path: str) -> Version:
-    # first, check if there is a file with the version, such as a package.json, pyproject.toml, etc.
-
-    # for nodejs
     path = Path(path).resolve()
 
-    package_json_path = path / "package.json"
-    pyproject_toml_path = path / "pyproject.toml"
-    setup_py_path = path / "setup.py"
-    cargo_toml_path = path / "Cargo.toml"
-    version_path = path / "VERSION"
-    version_txt_path = path / "VERSION.txt"
+    if version := get_version_from_files(path):
+        return version
 
+    if version := get_version_from_git(path):
+        return version
+
+    return Version(major=0, minor=0, patch=0)
+
+
+def get_version_from_files(path: Path) -> Version | None:  # noqa: PLR0911
+    # sourcery skip: assign-if-exp, reintroduce-else
+    if version := get_version_from_package_json(path):
+        return version
+    if version := get_version_from_pyproject_toml(path):
+        return version
+    if version := get_version_from_setup_py(path):
+        return version
+    if version := get_version_from_cargo_toml(path):
+        return version
+    if version := get_version_from_version_file(path):
+        return version
+    if version := get_version_from_version_txt(path):
+        return version
+    return None
+
+
+def get_version_from_package_json(path: Path) -> Version | None:
+    package_json_path = path / "package.json"
     if package_json_path.exists():
         import json
 
@@ -145,7 +163,12 @@ def get_prev_version(path: str) -> Version:
             json_data = json.load(f)
             if version := json_data.get("version"):
                 return Version.from_str(version)
-    elif pyproject_toml_path.exists():
+    return None
+
+
+def get_version_from_pyproject_toml(path: Path) -> Version | None:
+    pyproject_toml_path = path / "pyproject.toml"
+    if pyproject_toml_path.exists():
         with pyproject_toml_path.open() as f:
             toml_data = tomllib.load(f)
             if version := toml_data.get("project", {}).get("version"):
@@ -156,43 +179,60 @@ def get_prev_version(path: str) -> Version:
                 return Version.from_str(version)
             if version := toml_data.get("tool", {}).get("setuptools", {}).get("setup_requires", {}).get("version"):
                 return Version.from_str(version)
+    return None
 
-    elif setup_py_path.exists():
+
+def get_version_from_setup_py(path: Path) -> Version | None:
+    setup_py_path = path / "setup.py"
+    if setup_py_path.exists():
         with setup_py_path.open() as f:
             setup_data = f.read()
             if res := re.search(r"version=['\"]([^'\"]+)['\"]", setup_data):
                 return Version.from_str(res[1])
+    return None
 
-    elif cargo_toml_path.exists():
+
+def get_version_from_cargo_toml(path: Path) -> Version | None:
+    cargo_toml_path = path / "Cargo.toml"
+    if cargo_toml_path.exists():
         with cargo_toml_path.open() as f:
             cargo_data = tomllib.load(f)
             if version := cargo_data.get("package", {}).get("version"):
                 return Version.from_str(version)
+    return None
 
-    elif version_path.exists():
+
+def get_version_from_version_file(path: Path) -> Version | None:
+    version_path = path / "VERSION"
+    if version_path.exists():
         with version_path.open() as f:
             version = f.read().strip()
             return Version.from_str(version)
+    return None
 
-    elif version_txt_path.exists():
+
+def get_version_from_version_txt(path: Path) -> Version | None:
+    version_txt_path = path / "VERSION.txt"
+    if version_txt_path.exists():
         with version_txt_path.open() as f:
             version = f.read().strip()
             return Version.from_str(version)
+    return None
 
-    # if not, check if there is a git tag with the version
+
+def get_version_from_git(path: Path) -> Version | None:
     git_executable = shutil.which("git")
     if not git_executable:
         msg = "Git executable not found"
         raise FileNotFoundError(msg)
+
     status = subprocess.run([git_executable, "tag"], capture_output=True, cwd=path, check=False)  # noqa: S603
     if status.returncode == 0:
         tags = status.stdout.decode().split("\n")
         for tag in tags:
             if tag.startswith("v"):
                 return Version.from_str(tag[1:])
-
-    # if not, return 0.0.0
-    return Version(major=0, minor=0, patch=0)
+    return None
 
 
 def get_default_bump_by_commits_dict(commits_by_type: dict[str, list[git.Commit]]) -> str:
@@ -354,18 +394,23 @@ def update_version_files(
                 if file in filenames:
                     # file_path = os.path.join(root, file)
                     file_path = Path(root) / file
-                    if file == "package.json":
-                        update_file(file_path, r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=False)
-                    elif file in ("pyproject.toml", "build.gradle.kts"):
-                        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
-                    elif file == "setup.py":
-                        update_file(file_path, r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=False)
-                    elif file == "Cargo.toml":
-                        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
-                    elif file in ("VERSION", "VERSION.txt"):
-                        update_file(file_path, None, next_version_str, verbose, show_diff=False)
+                    update_version_in_file(verbose, next_version_str, file, file_path)
     else:
         update_file_in_root(next_version_str, verbose)
+
+
+def update_version_in_file(verbose: int, next_version_str: str, file: str, file_path: Path) -> None:
+    # sourcery skip: collection-into-set, merge-duplicate-blocks, remove-redundant-if
+    if file == "package.json":
+        update_file(file_path, r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=False)
+    elif file in ("pyproject.toml", "build.gradle.kts"):
+        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+    elif file == "setup.py":
+        update_file(file_path, r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=False)
+    elif file == "Cargo.toml":
+        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+    elif file in ("VERSION", "VERSION.txt"):
+        update_file(file_path, None, next_version_str, verbose, show_diff=False)
 
 
 def update_file_in_root(next_version_str: str, verbose: int) -> None:
@@ -397,14 +442,36 @@ def show_file_diff(old_content: str, new_content: str, filename: str) -> None:
     old_lines = old_content.splitlines()
     new_lines = new_content.splitlines()
     diff = list(Differ().compare(old_lines, new_lines))
+    print_lines = extract_context_lines(diff)
+
+    diffs = []
+    format_diff_lines(diff, print_lines, diffs)
+    if diffs:
+        console.print(
+            Panel.fit(
+                "\n".join(diffs),
+                border_style="cyan",
+                title=f"Diff for {filename}",
+                title_align="left",
+                padding=(1, 4),
+            ),
+        )
+        ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
+        if not ok or not ok["continue"]:
+            sys.exit()
+
+
+def extract_context_lines(diff: list[str]) -> dict[int, str]:
     print_lines = {}
     for i, line in enumerate(diff):
         if line.startswith(("+", "-")):
             for j in range(i - 3, i + 3):
                 if j >= 0 and j < len(diff):
                     print_lines[j] = diff[j][0]
+    return print_lines
 
-    diffs = []
+
+def format_diff_lines(diff: list[str], print_lines: dict[int, str], diffs: list[str]) -> None:
     for i, line in enumerate(diff):
         new_line = line.replace("[", "\\[")
         if i in print_lines:
@@ -418,20 +485,6 @@ def show_file_diff(old_content: str, new_content: str, filename: str) -> None:
                 diffs.append(f"[yellow]{new_line}[/yellow]")
             else:
                 diffs.append(new_line)
-    if diffs:
-        console.print(
-            Panel.fit(
-                "\n".join(diffs),
-                border_style="cyan",
-                title=f"Diff for {filename}",
-                title_align="left",
-                padding=(1, 4),
-            ),
-        )
-
-        ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
-        if not ok or not ok["continue"]:
-            sys.exit()
 
 
 def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int) -> None:
