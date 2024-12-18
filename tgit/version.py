@@ -169,7 +169,7 @@ def get_version_from_package_json(path: Path) -> Version | None:
 def get_version_from_pyproject_toml(path: Path) -> Version | None:
     pyproject_toml_path = path / "pyproject.toml"
     if pyproject_toml_path.exists():
-        with pyproject_toml_path.open() as f:
+        with pyproject_toml_path.open("rb") as f:
             toml_data = tomllib.load(f)
             if version := toml_data.get("project", {}).get("version"):
                 return Version.from_str(version)
@@ -195,7 +195,7 @@ def get_version_from_setup_py(path: Path) -> Version | None:
 def get_version_from_cargo_toml(path: Path) -> Version | None:
     cargo_toml_path = path / "Cargo.toml"
     if cargo_toml_path.exists():
-        with cargo_toml_path.open() as f:
+        with cargo_toml_path.open("rb") as f:
             cargo_data = tomllib.load(f)
             if version := cargo_data.get("package", {}).get("version"):
                 return Version.from_str(version)
