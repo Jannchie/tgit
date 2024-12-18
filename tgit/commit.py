@@ -69,13 +69,12 @@ def get_ai_command() -> str | None:
     if not diff:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
         return None
-    types = "|".join(commit_types)
     try:
         chat_completion = client.beta.chat.completions.parse(
             messages=[
                 {
                     "role": "system",
-                    "content": commit_prompt_template.render(types=types),
+                    "content": commit_prompt_template.render(types=commit_types),
                 },
                 {"role": "user", "content": diff},
             ],
