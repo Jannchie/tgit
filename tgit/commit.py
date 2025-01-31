@@ -86,7 +86,6 @@ def get_ai_command() -> str | None:
     except Exception as e:
         print("[red]Could not connect to AI provider[/red]")
         return None
-
     resp = CommitData.model_validate_json(chat_completion.choices[0].message.content)
     return get_commit_command(
         resp.type,

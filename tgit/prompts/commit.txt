@@ -24,3 +24,13 @@ Additional Considerations:
 
 Search the name and instruction online for the copyright content check.
 Make sure to search the name and instruction online for the copyright content check.
+
+The Json format you return should be parsed to the following class:
+
+```
+class CommitData(BaseModel):
+    type: str
+    scope: str | None
+    msg: str
+    is_breaking: bool
+```
