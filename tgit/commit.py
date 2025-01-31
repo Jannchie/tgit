@@ -6,7 +6,7 @@ from pathlib import Path
 
 import git
 from jinja2 import Environment, FileSystemLoader
-from openai import AuthenticationError, OpenAI
+from litellm import completion
 from pydantic import BaseModel
 from rich import print  # noqa: A004
 
@@ -58,7 +58,6 @@ class CommitData(BaseModel):
 
 
 def get_ai_command() -> str | None:
-    client = OpenAI()
     current_dir = Path.cwd()
     try:
         repo = git.Repo(current_dir, search_parent_directories=True)
@@ -70,7 +69,7 @@ def get_ai_command() -> str | None:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
         return None
     try:
-        chat_completion = client.beta.chat.completions.parse(
+        chat_completion = completion(
             messages=[
                 {
                     "role": "system",
@@ -78,14 +77,17 @@ def get_ai_command() -> str | None:
                 },
                 {"role": "user", "content": diff},
             ],
-            model="gpt-4o",
+            model=settings.get("model", "openai/gpt-4o"),
+            api_key=settings.get("apiKey", None),
+            base_url=settings.get("apiUrl", None),
             max_tokens=200,
             response_format=CommitData,
         )
-    except AuthenticationError:
-        print("[red]Could not authenticate with OpenAI, please check your API key.[/red]")
+    except Exception as e:
+        print("[red]Could not connect to AI provider[/red]")
         return None
-    resp = chat_completion.choices[0].message.parsed
+
+    resp = CommitData.model_validate_json(chat_completion.choices[0].message.content)
     return get_commit_command(
         resp.type,
         resp.scope,

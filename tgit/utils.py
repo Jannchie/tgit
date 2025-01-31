@@ -2,6 +2,7 @@ import subprocess
 import sys
 from typing import Optional
 
+import inquirer
 import rich
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -10,7 +11,6 @@ from tgit.settings import settings
 
 console = rich.get_console()
 
-import inquirer
 
 type_emojis = {
     "feat": ":sparkles:",

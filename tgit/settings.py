@@ -13,6 +13,21 @@ def load_global_settings():
     )
 
 
+def set_global_settings(key: str, value: str):
+    global_settings_path = [Path.home() / ".tgit.yaml", Path.home() / ".tgit.yml"]
+    found = False
+    for path in global_settings_path:
+        if path.exists():
+            settings = yaml.safe_load(path.read_text())
+            settings[key] = value
+            path.write_text(yaml.dump(settings))
+            found = True
+            break
+    if not found:
+        settings = {key: value}
+        global_settings_path[0].write_text(yaml.dump(settings))
+
+
 def load_workspace_settings():
     workspace_settings_path = [Path.cwd() / ".tgit.yaml", Path.cwd() / ".tgit.yml"]
     return next(
