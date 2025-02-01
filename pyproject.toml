@@ -59,3 +59,8 @@ ignore = [
     "D",
     "TRY300",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.4",
+]

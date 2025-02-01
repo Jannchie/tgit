@@ -1,9 +1,11 @@
 import argparse
 
-from .settings import set_global_settings, settings
+from rich import print  # noqa: A004
+
+from .settings import set_global_settings
 
 
-def define_config_parser(subparsers: argparse._SubParsersAction):
+def define_config_parser(subparsers: argparse._SubParsersAction) -> None:
     # edit api key / edit api url
     parser_config = subparsers.add_parser("config", help="edit settings")
     parser_config.add_argument("key", help="setting key")
@@ -11,7 +13,7 @@ def define_config_parser(subparsers: argparse._SubParsersAction):
     parser_config.set_defaults(func=handle_config)
 
 
-def handle_config(args: argparse.Namespace):
+def handle_config(args: argparse.Namespace) -> int:
     if not args.key:
         print("Key is required")
         return 1

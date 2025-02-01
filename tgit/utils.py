@@ -1,6 +1,5 @@
 import subprocess
 import sys
-from typing import Optional
 
 import inquirer
 import rich
@@ -26,7 +25,9 @@ type_emojis = {
 }
 
 
-def get_commit_command(commit_type: str, commit_scope: str | None, commit_msg: str, *, use_emoji: bool = False, is_breaking: bool = False):
+def get_commit_command(
+    commit_type: str, commit_scope: str | None, commit_msg: str, *, use_emoji: bool = False, is_breaking: bool = False
+) -> str:
     if commit_type.endswith("!"):
         commit_type = commit_type[:-1]
         is_breaking = True
@@ -38,7 +39,7 @@ def get_commit_command(commit_type: str, commit_scope: str | None, commit_msg: s
     else:
         msg = f"{commit_type}({commit_scope}){breaking_str}: {commit_msg}"
     if use_emoji:
-        msg = f"{type_emojis.get(commit_type, ':wrench:' )} {msg}"
+        msg = f"{type_emojis.get(commit_type, ':wrench:')} {msg}"
     return f'git commit -m "{msg}"'
 
 
@@ -74,8 +75,8 @@ def run_command(command: str) -> None:
     with console.status("[bold green]Executing...") as status:
         # use subprocess to run the command
         commands = command.split("\n")
-        for command in commands:
-            process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for cmd in commands:
+            process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # noqa: S602
             status.update(f"[bold green]Executing: {command}[/bold green]")
 
             # get the output and error
