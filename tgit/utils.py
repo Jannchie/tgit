@@ -26,7 +26,12 @@ type_emojis = {
 
 
 def get_commit_command(
-    commit_type: str, commit_scope: str | None, commit_msg: str, *, use_emoji: bool = False, is_breaking: bool = False
+    commit_type: str,
+    commit_scope: str | None,
+    commit_msg: str,
+    *,
+    use_emoji: bool = False,
+    is_breaking: bool = False,
 ) -> str:
     if commit_type.endswith("!"):
         commit_type = commit_type[:-1]
