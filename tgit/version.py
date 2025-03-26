@@ -192,14 +192,52 @@ def get_version_from_setup_py(path: Path) -> Version | None:
     return None
 
 
-def get_version_from_cargo_toml(path: Path) -> Version | None:
-    cargo_toml_path = path / "Cargo.toml"
-    if cargo_toml_path.exists():
+def get_version_from_cargo_toml(directory_path: Path) -> Version | None:
+    """
+    Safely reads and parses the package version from a Cargo.toml file
+    located in the specified directory.
+
+    Args:
+        directory_path: The path to the directory containing the Cargo.toml file.
+
+    Returns:
+        A packaging.version.Version object if the version is found and valid,
+        otherwise None. Returns None if the file doesn't exist, is unreadable,
+        is invalid TOML, or lacks a valid package version string.
+    """
+    cargo_toml_path = directory_path / "Cargo.toml"
+
+    # 1. Check if the file exists and is a file
+    if not cargo_toml_path.is_file():
+        console.print(f"Cargo.toml not found or is not a file at: {cargo_toml_path}")
+        return None
+    try:
+        # 2. Open and read the file
         with cargo_toml_path.open("rb") as f:
-            cargo_data = tomllib.load(f)
-            if version := cargo_data.get("package", {}).get("version"):
-                return Version.from_str(version)
-    return None
+            try:
+                # 3. Parse TOML content
+                cargo_data = tomllib.load(f)
+            except tomllib.TOMLDecodeError as e:
+                console.print(f"Failed to decode TOML file {cargo_toml_path}: {e}")
+                return None
+
+    except OSError as e:
+        # Handle potential file reading errors (permissions, etc.)
+        console.print(f"Could not read file {cargo_toml_path}: {e}")
+        return None
+
+    # 4. Safely access the package table
+    package_data = cargo_data.get("package")
+    if not isinstance(package_data, dict):
+        console.print(f"Missing or invalid [package] table in {cargo_toml_path}")
+        return None
+
+    # 5. Safely access the version string
+    version_str = package_data.get("version")
+    if not isinstance(version_str, str) or not version_str:  # Check if it's a non-empty string
+        console.print(f"Missing, empty, or invalid 'version' string in [package] table of {cargo_toml_path}")
+        return None
+    return Version.from_str(version_str)
 
 
 def get_version_from_version_file(path: Path) -> Version | None:
