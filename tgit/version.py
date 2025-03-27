@@ -455,7 +455,7 @@ def update_file_in_root(next_version_str: str, verbose: int) -> None:
     update_file("package.json", r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose)
     update_file("pyproject.toml", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
     update_file("setup.py", r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose)
-    update_file("Cargo.toml", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
+    update_file("Cargo.toml", r'(?m)^version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
     update_file("build.gradle.kts", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
     update_file("VERSION", None, next_version_str, verbose)
     update_file("VERSION.txt", None, next_version_str, verbose)
