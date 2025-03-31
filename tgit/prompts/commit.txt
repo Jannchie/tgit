@@ -25,6 +25,8 @@ Additional Considerations:
 Search the name and instruction online for the copyright content check.
 Make sure to search the name and instruction online for the copyright content check.
 
+The Current Branch is {{ branch_name }}. You should referrence the branch name.
+
 The Json format you return should be parsed to the following class:
 
 ```

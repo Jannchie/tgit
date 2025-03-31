@@ -64,6 +64,9 @@ def get_ai_command() -> str | None:
         print("[yellow]Not a git repository[/yellow]")
         return None
     diff = repo.git.diff("--cached")
+
+    current_branch = repo.active_branch.name
+
     if not diff:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
         return None
@@ -74,7 +77,7 @@ def get_ai_command() -> str | None:
             messages=[
                 {
                     "role": "system",
-                    "content": commit_prompt_template.render(types=commit_types),
+                    "content": commit_prompt_template.render(types=commit_types, branch=current_branch),
                 },
                 {"role": "user", "content": diff},
             ],
