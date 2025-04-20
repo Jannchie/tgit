@@ -7,11 +7,15 @@ from pathlib import Path
 import git
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
-from rich import print  # noqa: A004
+from rich import (
+    get_console,
+    print,  # noqa: A004
+)
 
 from tgit.settings import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
 
+console = get_console()
 with importlib.resources.path("tgit", "prompts") as prompt_path:
     env = Environment(loader=FileSystemLoader(prompt_path), autoescape=True)
 
@@ -78,21 +82,21 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
 
         if specified_type:
             template_params["specified_type"] = specified_type
-
-        chat_completion = completion(
-            messages=[
-                {
-                    "role": "system",
-                    "content": commit_prompt_template.render(**template_params),
-                },
-                {"role": "user", "content": diff},
-            ],
-            model=settings.get("model", "openai/gpt-4o"),
-            api_key=settings.get("apiKey", None),
-            base_url=settings.get("apiUrl", None),
-            max_tokens=200,
-            response_format=CommitData,
-        )
+        with console.status("[bold green]Generating commit message...[/bold green]"):
+            chat_completion = completion(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": commit_prompt_template.render(**template_params),
+                    },
+                    {"role": "user", "content": diff},
+                ],
+                model=settings.get("model", "openai/gpt-4o"),
+                api_key=settings.get("apiKey", None),
+                base_url=settings.get("apiUrl", None),
+                max_tokens=200,
+                response_format=CommitData,
+            )
     except Exception:
         print("[red]Could not connect to AI provider[/red]")
         return None
