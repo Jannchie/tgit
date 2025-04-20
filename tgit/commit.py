@@ -56,7 +56,7 @@ class CommitData(BaseModel):
     is_breaking: bool
 
 
-def get_ai_command() -> str | None:
+def get_ai_command(specified_type: str | None = None) -> str | None:
     current_dir = Path.cwd()
     try:
         repo = git.Repo(current_dir, search_parent_directories=True)
@@ -73,11 +73,17 @@ def get_ai_command() -> str | None:
     try:
         from litellm import completion
 
+        # 准备模板渲染参数，如果用户指定了类型，则传递给模板
+        template_params = {"types": commit_types, "branch": current_branch}
+
+        if specified_type:
+            template_params["specified_type"] = specified_type
+
         chat_completion = completion(
             messages=[
                 {
                     "role": "system",
-                    "content": commit_prompt_template.render(types=commit_types, branch=current_branch),
+                    "content": commit_prompt_template.render(**template_params),
                 },
                 {"role": "user", "content": diff},
             ],
@@ -91,8 +97,12 @@ def get_ai_command() -> str | None:
         print("[red]Could not connect to AI provider[/red]")
         return None
     resp = CommitData.model_validate_json(chat_completion.choices[0].message.content)
+
+    # 如果用户指定了类型，则使用用户指定的类型
+    commit_type = specified_type or resp.type
+
     return get_commit_command(
-        resp.type,
+        commit_type,
         resp.scope,
         resp.msg,
         use_emoji=settings.get("commit", {}).get("emoji", False),
@@ -104,15 +114,26 @@ def handle_commit(args: CommitArgs) -> None:
     prefix = ["", "!"]
     choices = ["".join(data) for data in itertools.product(commit_types, prefix)] + ["ci", "test", "version"]
 
-    if args.ai:
+    if args.ai or len(args.message) == 0:
+        # 如果明确指定使用 AI
         command = get_ai_command()
         if not command:
             return
-    else:
-        messages = args.message
-        if len(messages) == 0:
-            print("Please provide a commit message, or use --ai to generate by AI")
+    elif len(args.message) == 1:
+        # 如果只提供了一个参数（只有类型）
+        commit_type = args.message[0]
+        if commit_type not in choices:
+            print(f"Invalid type: {commit_type}")
+            print(f"Valid types: {choices}")
             return
+
+        # 使用 AI 生成提交信息，但保留用户指定的类型
+        command = get_ai_command(specified_type=commit_type)
+        if not command:
+            return
+    else:
+        # 正常的提交流程
+        messages = args.message
         commit_type = messages[0]
         if len(messages) > 2:  # noqa: PLR2004
             commit_scope = messages[1]
@@ -129,4 +150,5 @@ def handle_commit(args: CommitArgs) -> None:
             use_emoji = settings.get("commit", {}).get("emoji", False)
         is_breaking = args.breaking
         command = get_commit_command(commit_type, commit_scope, commit_msg, use_emoji=use_emoji, is_breaking=is_breaking)
+
     run_command(command)
