@@ -90,7 +90,7 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         return None
     files_to_include, lock_files = get_filtered_diff_files(repo)
     if not files_to_include and not lock_files:
-        print(f"[yellow]No files with diff lines <= {MAX_DIFF_LINES} to commit[/yellow]")
+        print("[yellow]No files to commit, please add some files before using AI[/yellow]")
         return None
     diff = ""
     if lock_files:

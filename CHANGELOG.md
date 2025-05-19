@@ -5,6 +5,7 @@
 ### :wrench: Chores
 
 - **ci**: update build workflow to release only on tag push && replace artifact upload with github release - By [Jianqi Pan](mailto:jannchie@gmail.com) in [7548485](https://github.com/Jannchie/tgit/commit/7548485)
+- **code-cleanup**: remove unnecessary noqa for print && update changelog and ruff ignore list - By [Jianqi Pan](mailto:jannchie@gmail.com) in [bdf5665](https://github.com/Jannchie/tgit/commit/bdf5665)
 
 ## v0.13.0
 
