@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import git
+from rich.progress import Progress
 
 logger = logging.getLogger("tgit")
 
@@ -232,26 +233,52 @@ def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: s
 def handle_changelog(args: ChangelogArgs) -> None:
     repo = git.Repo(args.path)
 
-    if args.output:
-        with Path(args.output).open("w") as output_file:
-            # 获取所有 tags
-            tags = repo.tags
-            # 获取第一个 commit
-            first_commit = get_first_commit_hash(repo)
-            points = [first_commit] + [tag.name for tag in tags]
-            points.reverse()
-            changelogs = ""
-            for i in range(len(points) - 1):
-                to_ref = points[i]
-                from_ref = points[i + 1]
-                changelog = get_changelog_by_range(repo, from_ref, to_ref)
-                changelogs += changelog
-            output_file.write(changelogs.strip("\n") + "\n")
     from_raw = args.from_raw
     to_raw = args.to_raw
 
+    # 如果未指定 from/to，聚合所有 tag 版本的 changelog，优化性能
+    if from_raw is None and to_raw is None:
+        tags = sorted(repo.tags, key=lambda t: t.commit.committed_datetime)
+        first_commit = get_first_commit_hash(repo)
+        points = [first_commit] + [tag.commit.hexsha for tag in tags] + [repo.head.commit.hexsha]
+        point_names = [first_commit] + [tag.name for tag in tags] + ["HEAD"]
+        changelogs = ""
+        with Progress() as progress:
+            task = progress.add_task("Generating changelog...", total=len(points) - 1)
+            # 反向遍历区间，实现反向输出
+            for i in reversed(range(len(points) - 1)):
+                from_hash = points[i]
+                to_hash = points[i + 1]
+                from_name = point_names[i]
+                to_name = point_names[i + 1]
+                raw_commits = list(repo.iter_commits(f"{from_hash}...{to_hash}"))
+                tgit_commits = []
+                for commit in raw_commits:
+                    if m := commit_pattern.match(commit.message):
+                        message_dict = m.groupdict()
+                        tgit_commits.append(TGITCommit(repo, commit, message_dict))
+                commits_by_type = group_commits_by_type(tgit_commits)
+                try:
+                    origin_url = repo.remote().url
+                    remote_uri = get_remote_uri(origin_url)
+                except ValueError:
+                    remote_uri = None
+                changelog = generate_changelog(commits_by_type, from_name, to_name, remote_uri)
+                changelogs += changelog
+                progress.update(task, advance=1)
+        if args.output:
+            with Path(args.output).open("w") as output_file:
+                output_file.write(changelogs.strip("\n") + "\n")
+        print()  # noqa: T201
+        print(changelogs.strip("\n"))  # noqa: T201
+        return
+
+    # 否则输出指定范围的 changelog
     from_ref, to_ref = get_git_commits_range(repo, from_raw, to_raw)
     changelog = get_changelog_by_range(repo, from_ref, to_ref)
+    if args.output:
+        with Path(args.output).open("w") as output_file:
+            output_file.write(changelog.strip("\n") + "\n")
     print()  # noqa: T201
     print(changelog)  # noqa: T201
 
