@@ -7,10 +7,7 @@ from pathlib import Path
 import git
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
-from rich import (
-    get_console,
-    print,  # noqa: A004
-)
+from rich import get_console, print
 
 from tgit.settings import settings
 from tgit.utils import get_commit_command, run_command, type_emojis

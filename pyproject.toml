@@ -59,6 +59,7 @@ ignore = [
     "TD003",
     "D",
     "TRY300",
+    "A004",
 ]
 
 [dependency-groups]

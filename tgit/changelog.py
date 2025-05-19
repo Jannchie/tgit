@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import git
+from rich import print
 from rich.progress import Progress
 
 logger = logging.getLogger("tgit")
@@ -269,8 +270,8 @@ def handle_changelog(args: ChangelogArgs) -> None:
         if args.output:
             with Path(args.output).open("w") as output_file:
                 output_file.write(changelogs.strip("\n") + "\n")
-        print()  # noqa: T201
-        print(changelogs.strip("\n"))  # noqa: T201
+        print()
+        print(changelogs.strip("\n"))
         return
 
     # 否则输出指定范围的 changelog
@@ -279,8 +280,9 @@ def handle_changelog(args: ChangelogArgs) -> None:
     if args.output:
         with Path(args.output).open("w") as output_file:
             output_file.write(changelog.strip("\n") + "\n")
-    print()  # noqa: T201
-    print(changelog)  # noqa: T201
+    else:
+        print()
+        print(changelog)
 
 
 def get_changelog_by_range(repo: git.Repo, from_ref: str, to_ref: str) -> str:

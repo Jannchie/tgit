@@ -1,3 +1,11 @@
+## HEAD
+
+[v0.13.0...HEAD](https://github.com/Jannchie/tgit/compare/v0.13.0...HEAD)
+
+### :wrench: Chores
+
+- **ci**: update build workflow to release only on tag push && replace artifact upload with github release - By [Jianqi Pan](mailto:jannchie@gmail.com) in [7548485](https://github.com/Jannchie/tgit/commit/7548485)
+
 ## v0.13.0
 
 [v0.12.0...v0.13.0](https://github.com/Jannchie/tgit/compare/v0.12.0...v0.13.0)
@@ -6,6 +14,10 @@
 
 - **changelog**: add progress bar and improve tag changelog aggregation - By [Jianqi Pan](mailto:jannchie@gmail.com) in [e98fba4](https://github.com/Jannchie/tgit/commit/e98fba4)
 - **commit**: filter large diffs and lock files from ai commit msg input && switch from litellm to openai - By [Jianqi Pan](mailto:jannchie@gmail.com) in [587c4d1](https://github.com/Jannchie/tgit/commit/587c4d1)
+
+### :memo: Documentation
+
+- **changelog**: update changelog for v0.13.0 release - By [Jianqi Pan](mailto:jannchie@gmail.com) in [e61e8bb](https://github.com/Jannchie/tgit/commit/e61e8bb)
 
 ### :wrench: Chores
 
