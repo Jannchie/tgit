@@ -23,6 +23,9 @@ commit_types = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "wi
 commit_file = "commit.txt"
 commit_prompt_template = env.get_template("commit.txt")
 
+MAX_DIFF_LINES = 1000
+NUMSTAT_PARTS = 3
+
 
 def define_commit_parser(subparsers: argparse._SubParsersAction) -> None:
     commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
@@ -60,6 +63,27 @@ class CommitData(BaseModel):
     is_breaking: bool
 
 
+def get_filtered_diff_files(repo: git.Repo) -> tuple[list[str], list[str]]:
+    diff_numstat = repo.git.diff("--cached", "--numstat")
+    files_to_include = []
+    lock_files = []
+    for line in diff_numstat.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= NUMSTAT_PARTS:
+            added, deleted, filename = parts[0], parts[1], parts[2]
+            if filename.endswith(".lock"):
+                lock_files.append(filename)
+                continue
+            try:
+                added = int(added) if added != "-" else 0
+                deleted = int(deleted) if deleted != "-" else 0
+            except ValueError:
+                continue
+            if added + deleted <= MAX_DIFF_LINES:
+                files_to_include.append(filename)
+    return files_to_include, lock_files
+
+
 def get_ai_command(specified_type: str | None = None) -> str | None:
     current_dir = Path.cwd()
     try:
@@ -67,40 +91,51 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
     except git.InvalidGitRepositoryError:
         print("[yellow]Not a git repository[/yellow]")
         return None
-    diff = repo.git.diff("--cached")
-
+    files_to_include, lock_files = get_filtered_diff_files(repo)
+    if not files_to_include and not lock_files:
+        print(f"[yellow]No files with diff lines <= {MAX_DIFF_LINES} to commit[/yellow]")
+        return None
+    diff = ""
+    if lock_files:
+        diff += f"[INFO] The following lock files were modified but are not included in the diff: {', '.join(lock_files)}\n"
+    if files_to_include:
+        diff += repo.git.diff("--cached", "--", *files_to_include)
     current_branch = repo.active_branch.name
 
     if not diff:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
         return None
     try:
-        from litellm import completion
+        import openai
 
+        client = openai.Client()
+        if settings.get("apiUrl", None):
+            client.api_base = settings.get("apiUrl", None)
+        if settings.get("apiKey", None):
+            client.api_key = settings.get("apiKey", None)
         # 准备模板渲染参数，如果用户指定了类型，则传递给模板
         template_params = {"types": commit_types, "branch": current_branch}
 
         if specified_type:
             template_params["specified_type"] = specified_type
         with console.status("[bold green]Generating commit message...[/bold green]"):
-            chat_completion = completion(
-                messages=[
+            chat_completion = client.responses.parse(
+                input=[
                     {
                         "role": "system",
                         "content": commit_prompt_template.render(**template_params),
                     },
                     {"role": "user", "content": diff},
                 ],
-                model=settings.get("model", "openai/gpt-4o"),
-                api_key=settings.get("apiKey", None),
-                base_url=settings.get("apiUrl", None),
-                max_tokens=200,
-                response_format=CommitData,
+                model=settings.get("model", "gpt-4.1"),
+                max_output_tokens=50,
+                text_format=CommitData,
             )
-    except Exception:
+    except Exception as e:
         print("[red]Could not connect to AI provider[/red]")
+        print(e)
         return None
-    resp = CommitData.model_validate_json(chat_completion.choices[0].message.content)
+    resp = chat_completion.output_parsed
 
     # 如果用户指定了类型，则使用用户指定的类型
     commit_type = specified_type or resp.type

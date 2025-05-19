@@ -1,5 +1,6 @@
 import argparse
 import importlib.metadata
+import threading
 
 import rich
 import rich.traceback
@@ -30,6 +31,12 @@ def main() -> None:
     define_config_parser(subparsers)
 
     args = parser.parse_args()
+
+    def import_openai() -> None:
+        import openai  # noqa: F401
+
+    threading.Thread(target=import_openai).start()
+
     handle(parser, args)
 
 

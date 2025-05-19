@@ -1,6 +1,6 @@
 [project]
 name = "tgit"
-version = "0.12.0"
+version = "0.13.0"
 description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool that simplifies and streamlines your Git workflow, making version control a breeze."
 authors = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
 dependencies = [
@@ -10,7 +10,6 @@ dependencies = [
     "gitpython>=3.1.43",
     "openai>=1.52.0",
     "jinja2>=3.1.4",
-    "litellm>=1.59.9",
     "gitpython>=3.1.44",
     "inquirer>=3.4.0",
     "beautifulsoup4>=4.13.3",
@@ -35,6 +34,7 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 upgrade = true
+package = true
 
 [tool.hatch.metadata]
 allow-direct-references = true
