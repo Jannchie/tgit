@@ -2,11 +2,7 @@ name: Build Python package with uv
 
 on:
   push:
-    branches: [main]
-    tags: ["*"]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+    tags: ["*"] # 仅tag push时自动release
 
 jobs:
   build:
@@ -28,9 +24,9 @@ jobs:
       - name: Build package
         run: uv build
 
-      - name: Upload build artifacts
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: dist-packages
-          path: dist/
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
