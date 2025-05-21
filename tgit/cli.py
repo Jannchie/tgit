@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import importlib.metadata
 import threading
 
@@ -33,7 +34,8 @@ def main() -> None:
     args = parser.parse_args()
 
     def import_openai() -> None:
-        import openai  # noqa: F401
+        with contextlib.suppress(Exception):
+            import openai  # noqa: F401
 
     threading.Thread(target=import_openai).start()
 
