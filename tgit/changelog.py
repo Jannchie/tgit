@@ -288,9 +288,15 @@ def handle_changelog(args: ChangelogArgs) -> None:
                 changelogs += changelog
                 progress.update(task, advance=1)
         if changelogs:
-            mode = "a" if latest_tag_in_file else "w"
-            with Path(args.output).open(mode, encoding="utf-8") as output_file:
-                output_file.write(changelogs.strip("\n") + "\n")
+            if latest_tag_in_file:
+                # prepend: 新内容写在最前面
+                with Path(args.output).open("r", encoding="utf-8") as f:
+                    old_content = f.read()
+                with Path(args.output).open("w", encoding="utf-8") as f:
+                    f.write(changelogs.strip("\n") + "\n\n" + old_content)
+            else:
+                with Path(args.output).open("w", encoding="utf-8") as output_file:
+                    output_file.write(changelogs.strip("\n") + "\n")
         print()
         print(changelogs.strip("\n"))
         return
