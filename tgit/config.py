@@ -1,6 +1,6 @@
 import argparse
 
-from rich import print  # noqa: A004
+from rich import print
 
 from .settings import set_global_settings
 

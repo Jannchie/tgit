@@ -268,7 +268,7 @@ def write_changelog_prepend(filepath: str, new_content: str) -> None:
         with path.open("r", encoding="utf-8") as f:
             old_content = f.read()
         with path.open("w", encoding="utf-8") as f:
-            f.write(new_content.strip("\n") + "\n" + old_content)
+            f.write(new_content.strip("\n") + "\n\n" + old_content)
     else:
         with path.open("w", encoding="utf-8") as f:
             f.write(new_content.strip("\n") + "\n")
