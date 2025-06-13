@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import re
 import warnings
@@ -231,27 +232,46 @@ def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: s
     return out_str
 
 
+def extract_latest_tag_from_changelog(filepath: str) -> str | None:
+    filepath = Path(filepath)
+    with contextlib.suppress(FileNotFoundError), filepath.open(encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("## "):
+                return line.strip().removeprefix("## ").strip()
+    return None
+
+
 def handle_changelog(args: ChangelogArgs) -> None:
     repo = git.Repo(args.path)
-
     from_raw = args.from_raw
     to_raw = args.to_raw
 
-    # 如果未指定 from/to，聚合所有 tag 版本的 changelog（不再包含 HEAD，仅以最后一个 tag 结尾）
+    # 检查是否需要增量追加
+    latest_tag_in_file = None
+    if args.output and Path(args.output).exists() and from_raw is None and to_raw is None:
+        latest_tag_in_file = extract_latest_tag_from_changelog(args.output)
+
+    # 默认：统计所有 tag 之间的差分（不包含最新 tag 到 HEAD）
     if from_raw is None and to_raw is None:
         tags = sorted(repo.tags, key=lambda t: t.commit.committed_datetime)
+        if not tags:
+            print("[yellow]No tags found in the repository.[/yellow]")
+            return
         first_commit = get_first_commit_hash(repo)
         points = [first_commit] + [tag.commit.hexsha for tag in tags]
         point_names = [first_commit] + [tag.name for tag in tags]
         changelogs = ""
+        start_idx = 1
+        if latest_tag_in_file and latest_tag_in_file in point_names:
+            idx = point_names.index(latest_tag_in_file)
+            start_idx = idx + 1
         with Progress() as progress:
-            task = progress.add_task("Generating changelog...", total=len(points) - 1)
-            # 反向遍历区间，实现反向输出
-            for i in reversed(range(len(points) - 1)):
-                from_hash = points[i]
-                to_hash = points[i + 1]
-                from_name = point_names[i]
-                to_name = point_names[i + 1]
+            task = progress.add_task("Generating changelog...", total=len(points) - start_idx)
+            for i in reversed(range(start_idx, len(points))):
+                from_hash = points[i - 1]
+                to_hash = points[i]
+                from_name = point_names[i - 1]
+                to_name = point_names[i]
                 raw_commits = list(repo.iter_commits(f"{from_hash}...{to_hash}"))
                 tgit_commits = []
                 for commit in raw_commits:
@@ -267,8 +287,9 @@ def handle_changelog(args: ChangelogArgs) -> None:
                 changelog = generate_changelog(commits_by_type, from_name, to_name, remote_uri)
                 changelogs += changelog
                 progress.update(task, advance=1)
-        if args.output:
-            with Path(args.output).open("w") as output_file:
+        if changelogs:
+            mode = "a" if latest_tag_in_file else "w"
+            with Path(args.output).open(mode, encoding="utf-8") as output_file:
                 output_file.write(changelogs.strip("\n") + "\n")
         print()
         print(changelogs.strip("\n"))
@@ -278,7 +299,7 @@ def handle_changelog(args: ChangelogArgs) -> None:
     from_ref, to_ref = get_git_commits_range(repo, from_raw, to_raw)
     changelog = get_changelog_by_range(repo, from_ref, to_ref)
     if args.output:
-        with Path(args.output).open("w") as output_file:
+        with Path(args.output).open("w", encoding="utf-8") as output_file:
             output_file.write(changelog.strip("\n") + "\n")
     else:
         print()
