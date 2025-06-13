@@ -241,37 +241,69 @@ def extract_latest_tag_from_changelog(filepath: str) -> str | None:
     return None
 
 
+def prepare_changelog_segments(
+    repo: git.Repo,
+    latest_tag_in_file: str | None = None,
+) -> list[tuple[str, str, str, str]]:
+    tags = sorted(repo.tags, key=lambda t: t.commit.committed_datetime)
+    if not tags:
+        print("[yellow]No tags found in the repository.[/yellow]")
+        return []
+    first_commit = get_first_commit_hash(repo)
+    points = [first_commit] + [tag.commit.hexsha for tag in tags]
+    point_names = [first_commit] + [tag.name for tag in tags]
+    start_idx = 1
+    if latest_tag_in_file and latest_tag_in_file in point_names:
+        idx = point_names.index(latest_tag_in_file)
+        start_idx = idx + 1
+    segments: list[tuple[str, str, str, str]] = [
+        (points[i - 1], points[i], point_names[i - 1], point_names[i]) for i in reversed(range(start_idx, len(points)))
+    ]
+    return segments
+
+
+def write_changelog_prepend(filepath: str, new_content: str) -> None:
+    path = Path(filepath)
+    if path.exists():
+        with path.open("r", encoding="utf-8") as f:
+            old_content = f.read()
+        with path.open("w", encoding="utf-8") as f:
+            f.write(new_content.strip("\n") + "\n" + old_content)
+    else:
+        with path.open("w", encoding="utf-8") as f:
+            f.write(new_content.strip("\n") + "\n")
+
+
+def print_and_write_changelog(
+    changelog: str,
+    output_path: str | None = None,
+    *,
+    prepend: bool = False,
+) -> None:
+    print()
+    print(changelog.strip("\n"))
+    if output_path:
+        if prepend:
+            write_changelog_prepend(output_path, changelog)
+        else:
+            with Path(output_path).open("w", encoding="utf-8") as output_file:
+                output_file.write(changelog.strip("\n") + "\n")
+
+
 def handle_changelog(args: ChangelogArgs) -> None:
     repo = git.Repo(args.path)
     from_raw = args.from_raw
     to_raw = args.to_raw
-
-    # 检查是否需要增量追加
     latest_tag_in_file = None
     if args.output and Path(args.output).exists() and from_raw is None and to_raw is None:
         latest_tag_in_file = extract_latest_tag_from_changelog(args.output)
-
     # 默认：统计所有 tag 之间的差分（不包含最新 tag 到 HEAD）
     if from_raw is None and to_raw is None:
-        tags = sorted(repo.tags, key=lambda t: t.commit.committed_datetime)
-        if not tags:
-            print("[yellow]No tags found in the repository.[/yellow]")
-            return
-        first_commit = get_first_commit_hash(repo)
-        points = [first_commit] + [tag.commit.hexsha for tag in tags]
-        point_names = [first_commit] + [tag.name for tag in tags]
+        segments = prepare_changelog_segments(repo, latest_tag_in_file)
         changelogs = ""
-        start_idx = 1
-        if latest_tag_in_file and latest_tag_in_file in point_names:
-            idx = point_names.index(latest_tag_in_file)
-            start_idx = idx + 1
         with Progress() as progress:
-            task = progress.add_task("Generating changelog...", total=len(points) - start_idx)
-            for i in reversed(range(start_idx, len(points))):
-                from_hash = points[i - 1]
-                to_hash = points[i]
-                from_name = point_names[i - 1]
-                to_name = point_names[i]
+            task = progress.add_task("Generating changelog...", total=len(segments))
+            for from_hash, to_hash, from_name, to_name in segments:
                 raw_commits = list(repo.iter_commits(f"{from_hash}...{to_hash}"))
                 tgit_commits = []
                 for commit in raw_commits:
@@ -287,29 +319,12 @@ def handle_changelog(args: ChangelogArgs) -> None:
                 changelog = generate_changelog(commits_by_type, from_name, to_name, remote_uri)
                 changelogs += changelog
                 progress.update(task, advance=1)
-        if changelogs:
-            if latest_tag_in_file:
-                # prepend: 新内容写在最前面
-                with Path(args.output).open("r", encoding="utf-8") as f:
-                    old_content = f.read()
-                with Path(args.output).open("w", encoding="utf-8") as f:
-                    f.write(changelogs.strip("\n") + "\n\n" + old_content)
-            else:
-                with Path(args.output).open("w", encoding="utf-8") as output_file:
-                    output_file.write(changelogs.strip("\n") + "\n")
-        print()
-        print(changelogs.strip("\n"))
+        print_and_write_changelog(changelogs, args.output, prepend=bool(latest_tag_in_file))
         return
-
     # 否则输出指定范围的 changelog
     from_ref, to_ref = get_git_commits_range(repo, from_raw, to_raw)
     changelog = get_changelog_by_range(repo, from_ref, to_ref)
-    if args.output:
-        with Path(args.output).open("w", encoding="utf-8") as output_file:
-            output_file.write(changelog.strip("\n") + "\n")
-    else:
-        print()
-        print(changelog)
+    print_and_write_changelog(changelog, args.output, prepend=False)
 
 
 def get_changelog_by_range(repo: git.Repo, from_ref: str, to_ref: str) -> str:
