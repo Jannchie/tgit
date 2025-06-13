@@ -237,12 +237,12 @@ def handle_changelog(args: ChangelogArgs) -> None:
     from_raw = args.from_raw
     to_raw = args.to_raw
 
-    # 如果未指定 from/to，聚合所有 tag 版本的 changelog，优化性能
+    # 如果未指定 from/to，聚合所有 tag 版本的 changelog（不再包含 HEAD，仅以最后一个 tag 结尾）
     if from_raw is None and to_raw is None:
         tags = sorted(repo.tags, key=lambda t: t.commit.committed_datetime)
         first_commit = get_first_commit_hash(repo)
-        points = [first_commit] + [tag.commit.hexsha for tag in tags] + [repo.head.commit.hexsha]
-        point_names = [first_commit] + [tag.name for tag in tags] + ["HEAD"]
+        points = [first_commit] + [tag.commit.hexsha for tag in tags]
+        point_names = [first_commit] + [tag.name for tag in tags]
         changelogs = ""
         with Progress() as progress:
             task = progress.add_task("Generating changelog...", total=len(points) - 1)

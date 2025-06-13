@@ -1,6 +1,18 @@
-## HEAD
+## v0.13.2
 
-[v0.13.0...HEAD](https://github.com/Jannchie/tgit/compare/v0.13.0...HEAD)
+[v0.13.1...v0.13.2](https://github.com/Jannchie/tgit/compare/v0.13.1...v0.13.2)
+
+### :adhesive_bandage: Fixes
+
+- **cli**: suppress import error for openai in thread - By [Jianqi Pan](mailto:jannchie@gmail.com) in [4973127](https://github.com/Jannchie/tgit/commit/4973127)
+
+## v0.13.1
+
+[v0.13.0...v0.13.1](https://github.com/Jannchie/tgit/compare/v0.13.0...v0.13.1)
+
+### :adhesive_bandage: Fixes
+
+- **commit**: update no-files message for ai command - By [Jianqi Pan](mailto:jannchie@gmail.com) in [cda3740](https://github.com/Jannchie/tgit/commit/cda3740)
 
 ### :wrench: Chores
 
