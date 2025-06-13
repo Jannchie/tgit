@@ -273,9 +273,12 @@ def get_version_from_git(path: Path) -> Version | None:
     return None
 
 
-def get_default_bump_by_commits_dict(commits_by_type: dict[str, list[git.Commit]]) -> str:
-    # sourcery skip: assign-if-exp, reintroduce-else
-    if commits_by_type.get("breaking"):
+def get_default_bump_by_commits_dict(commits_by_type: dict[str, list[git.Commit]], prev_version: Version | None = None) -> str:
+    # v0.x.x breaking change 只 bump minor，v1+ 才 bump major
+    if prev_version and prev_version.major == 0:
+        if commits_by_type.get("breaking"):
+            return "minor"
+    elif commits_by_type.get("breaking"):
         return "major"
     if commits_by_type.get("feat"):
         return "minor"
@@ -311,7 +314,7 @@ def get_next_version(args: VersionArgs, prev_version: Version, verbose: int) -> 
     from_ref, to_ref = get_git_commits_range(repo, None, None)
     tgit_commits = get_commits(repo, from_ref, to_ref)
     commits_by_type = group_commits_by_type(tgit_commits)
-    default_bump = get_default_bump_by_commits_dict(commits_by_type)
+    default_bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)
 
     choices = [
         VersionChoice(prev_version, bump) for bump in ["patch", "minor", "major", "prepatch", "preminor", "premajor", "previous", "custom"]
