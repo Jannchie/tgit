@@ -1,3 +1,23 @@
+## v0.14.1
+
+[v0.14.0...v0.14.1](https://github.com/Jannchie/tgit/compare/v0.14.0...v0.14.1)
+
+### :adhesive_bandage: Fixes
+
+- **changelog**: prepend new changelog entries if file exists - By [Jianqi Pan](mailto:jannchie@gmail.com) in [c4b3dff](https://github.com/Jannchie/tgit/commit/c4b3dff)
+
+## v0.14.0
+
+[v0.13.2...v0.14.0](https://github.com/Jannchie/tgit/compare/v0.13.2...v0.14.0)
+
+### :sparkles: Features
+
+- **changelog**: add incremental changelog generation && support appending to existing file - By [Jianqi Pan](mailto:jannchie@gmail.com) in [2d193a5](https://github.com/Jannchie/tgit/commit/2d193a5)
+
+### :adhesive_bandage: Fixes
+
+- **changelog**: remove head from default changelog range && update changelog entries - By [Jianqi Pan](mailto:jannchie@gmail.com) in [f6509e3](https://github.com/Jannchie/tgit/commit/f6509e3)
+
 ## v0.13.2
 
 [v0.13.1...v0.13.2](https://github.com/Jannchie/tgit/compare/v0.13.1...v0.13.2)
