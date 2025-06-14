@@ -280,6 +280,9 @@ def print_and_write_changelog(
     *,
     prepend: bool = False,
 ) -> None:
+    if not changelog or not changelog.strip():
+        print("[yellow]No changes found, nothing to output.[/yellow]")
+        return
     print()
     print(changelog.strip("\n"))
     if output_path:
