@@ -290,7 +290,7 @@ def print_and_write_changelog(
                 output_file.write(changelog.strip("\n") + "\n")
 
 
-def handle_changelog(args: ChangelogArgs) -> None:
+def handle_changelog(args: ChangelogArgs, current_tag: str | None = None) -> None:
     repo = git.Repo(args.path)
     from_raw = args.from_raw
     to_raw = args.to_raw
@@ -298,7 +298,7 @@ def handle_changelog(args: ChangelogArgs) -> None:
     if args.output and Path(args.output).exists() and from_raw is None and to_raw is None:
         latest_tag_in_file = extract_latest_tag_from_changelog(args.output)
     # 默认：统计所有 tag 之间的差分（不包含最新 tag 到 HEAD）
-    if from_raw is None and to_raw is None:
+    if from_raw is None and to_raw is None and not current_tag:
         segments = prepare_changelog_segments(repo, latest_tag_in_file)
         changelogs = ""
         with Progress() as progress:
@@ -320,6 +320,22 @@ def handle_changelog(args: ChangelogArgs) -> None:
                 changelogs += changelog
                 progress.update(task, advance=1)
         print_and_write_changelog(changelogs, args.output, prepend=bool(latest_tag_in_file))
+        return
+    # 新增：如果 current_tag 存在，统计最新 tag 到 HEAD，to_ref 渲染为 current_tag
+    if current_tag:
+        # 获取最新 tag
+        tags = sorted(repo.tags, key=lambda t: t.commit.committed_datetime)
+        if tags:
+            latest_tag = tags[-1].name
+            from_ref = latest_tag
+        else:
+            from_ref = get_first_commit_hash(repo)
+        to_ref = repo.head.commit.hexsha
+        changelog = get_changelog_by_range(repo, from_ref, to_ref)
+        # 渲染时将 to_ref 替换为 current_tag
+        changelog = changelog.replace(f"## {to_ref}", f"## {current_tag}")
+        changelog = changelog.replace(f"{from_ref}...{to_ref}", f"{from_ref}...{current_tag}")
+        print_and_write_changelog(changelog, args.output, prepend=False)
         return
     # 否则输出指定范围的 changelog
     from_ref, to_ref = get_git_commits_range(repo, from_raw, to_raw)

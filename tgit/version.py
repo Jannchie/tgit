@@ -292,6 +292,32 @@ def handle_version(args: VersionArgs) -> None:
     reclusive = args.recursive
 
     if next_version := get_next_version(args, prev_version, verbose):
+        # 获取目标 tag 名
+        target_tag = f"v{next_version}"
+        # 询问是否生成 changelog
+        ans = inquirer.prompt(
+            [
+                inquirer.Confirm(
+                    "gen_changelog",
+                    message=f"should generate changelog for {target_tag}?",
+                    default=True,
+                ),
+            ],
+        )
+        if ans and ans.get("gen_changelog"):
+            # 构造 changelog 参数对象
+            from argparse import Namespace
+
+            changelog_args = Namespace(
+                path=path,
+                from_raw=None,
+                to_raw=None,
+                output="CHANGELOG.md",
+                verbose=verbose,
+            )
+            from tgit.changelog import handle_changelog
+
+            handle_changelog(changelog_args, current_tag=target_tag)
         update_version_files(args, next_version, verbose, reclusive=reclusive)
         execute_git_commands(args, next_version, verbose)
 
