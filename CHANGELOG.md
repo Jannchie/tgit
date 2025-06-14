@@ -1,3 +1,55 @@
+## v0.16.0
+
+[v0.15.1...v0.16.0](https://github.com/Jannchie/tgit/compare/v0.15.1...v0.16.0)
+
+### :sparkles: Features
+
+- **version-changelog**: add interactive changelog generation on version bump - By [Jianqi Pan](mailto:jannchie@gmail.com) in [2c6c3b3](https://github.com/Jannchie/tgit/commit/2c6c3b3)
+
+### :adhesive_bandage: Fixes
+
+- **changelog**: report no changes when changelog empty - By [Jianqi Pan](mailto:jannchie@gmail.com) in [02d94ff](https://github.com/Jannchie/tgit/commit/02d94ff)
+
+### :art: Refactors
+
+- **changelog**: simplify current tag handling in changelog - By [Jianqi Pan](mailto:jannchie@gmail.com) in [6ac7903](https://github.com/Jannchie/tgit/commit/6ac7903)
+
+## v0.15.1
+
+[v0.15.0...v0.15.1](https://github.com/Jannchie/tgit/compare/v0.15.0...v0.15.1)
+
+### :wrench: Chores
+
+- **deps**: update lock file - By [Jianqi Pan](mailto:jannchie@gmail.com) in [4ab3b1e](https://github.com/Jannchie/tgit/commit/4ab3b1e)
+
+## v0.15.0
+
+[v0.14.2...v0.15.0](https://github.com/Jannchie/tgit/compare/v0.14.2...v0.15.0)
+
+### :sparkles: Features
+
+- **prompts**: revise commit message instructions for clarity - By [Jianqi Pan](mailto:jannchie@gmail.com) in [b58f9ec](https://github.com/Jannchie/tgit/commit/b58f9ec)
+
+## v0.14.2
+
+[v0.14.1...v0.14.2](https://github.com/Jannchie/tgit/compare/v0.14.1...v0.14.2)
+
+### :adhesive_bandage: Fixes
+
+- **version**: fix bump logic for v0 breaking changes to minor - By [Jianqi Pan](mailto:jannchie@gmail.com) in [0f14045](https://github.com/Jannchie/tgit/commit/0f14045)
+
+### :art: Refactors
+
+- **changelog**: extract changelog segment, write helpers && simplify handle logic - By [Jianqi Pan](mailto:jannchie@gmail.com) in [ebc1e17](https://github.com/Jannchie/tgit/commit/ebc1e17)
+
+### :lipstick: Styles
+
+- **changelog**: add extra newline before old changelog content && remove noqa for rich print import - By [Jianqi Pan](mailto:jannchie@gmail.com) in [ca93aaf](https://github.com/Jannchie/tgit/commit/ca93aaf)
+
+### :memo: Documentation
+
+- **changelog**: update changelog for v0.14.0 and v0.14.1 - By [Jianqi Pan](mailto:jannchie@gmail.com) in [3d26e26](https://github.com/Jannchie/tgit/commit/3d26e26)
+
 ## v0.14.1
 
 [v0.14.0...v0.14.1](https://github.com/Jannchie/tgit/compare/v0.14.0...v0.14.1)
