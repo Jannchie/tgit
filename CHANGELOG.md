@@ -1,3 +1,12 @@
+## v0.17.0
+
+[v0.16.0...v0.17.0](https://github.com/Jannchie/tgit/compare/v0.16.0...v0.17.0)
+
+### :sparkles: Features
+
+- **changelog**: improve changelog output with panel ui - By [Jianqi Pan](mailto:jannchie@gmail.com) in [15237ca](https://github.com/Jannchie/tgit/commit/15237ca)
+- **changelog**: add custom heading render and refactor changelog output - By [Jianqi Pan](mailto:jannchie@gmail.com) in [ca81836](https://github.com/Jannchie/tgit/commit/ca81836)
+
 ## v0.16.0
 
 [v0.15.1...v0.16.0](https://github.com/Jannchie/tgit/compare/v0.15.1...v0.16.0)
