@@ -346,7 +346,15 @@ def print_and_write_changelog(
     print()
     # rich.Markdown 默认标题居中，需用 console.print 并设置参数 style 和 width
     md = Markdown(changelog.strip("\n"), justify="left")
-    console.print(md, width=80)
+    panel = Panel(
+        md,
+        title="Changelog",
+        border_style="cyan",
+        title_align="left",
+        subtitle=f"It is saved to {output_path}" if output_path else None,
+        width=80,
+    )
+    console.print(panel)
     if output_path:
         if prepend:
             write_changelog_prepend(output_path, changelog)
@@ -456,14 +464,4 @@ def get_changelog_by_range(repo: git.Repo, from_ref: str, to_ref: str) -> str:
 def get_git_commits_range(repo: git.Repo, from_raw: str, to_raw: str) -> tuple[str, str]:
     from_ref = resolve_from_ref(repo, from_raw)
     to_ref = "HEAD" if to_raw is None else to_raw
-    if to_ref == "HEAD":
-        latest_commit = repo.head.commit
-        tags = repo.tags
-        latest_commit_tags = [tag for tag in tags if tag.commit == latest_commit]
-        if latest_commit_tags:
-            to_ref = from_ref
-            from_ref = get_tag_by_idx(repo, -2)
-            if from_ref is None:
-                from_ref = get_first_commit_hash(repo)
-
     return from_ref, to_ref
