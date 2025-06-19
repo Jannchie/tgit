@@ -8,10 +8,63 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import git
-from rich import print
+from markdown_it.token import Token
+from rich import box, print
+from rich.console import Console, ConsoleOptions, RenderResult
+from rich.markdown import Markdown, MarkdownContext, TextElement
+from rich.panel import Panel
 from rich.progress import Progress
+from rich.text import Text
+
+from tgit.utils import console
 
 logger = logging.getLogger("tgit")
+
+
+class Heading(TextElement):
+    """A heading."""
+
+    @classmethod
+    def create(cls, _markdown: Markdown, token: Token) -> "Heading":
+        return cls(token.tag)
+
+    def on_enter(self, context: MarkdownContext) -> None:
+        self.text = Text()
+        context.enter_style(self.style_name)
+
+    def __init__(self, tag: str) -> None:
+        self.tag = tag
+        self.style_name = f"markdown.{tag}"
+        super().__init__()
+
+    def __rich_console__(
+        self,
+        console: Console,
+        options: ConsoleOptions,
+    ) -> RenderResult:
+        # 根据标题级别添加相应数量的 # 号
+        level = int(self.tag[1])  # 从 h1, h2, h3... 中提取数字
+        hash_prefix = "#" * level + " "
+
+        # 创建带有 # 前缀的文本
+        prefixed_text = Text(hash_prefix) + Text.from_markup(self.text.plain)
+        prefixed_text.justify = ""
+
+        if self.tag == "h1":
+            # Draw a border around h1s
+            yield Panel(
+                prefixed_text,
+                box=box.HEAVY,
+                style="markdown.h1.border",
+            )
+        else:
+            # Styled text for h2 and beyond
+            if self.tag == "h2":
+                yield Text("")
+            yield prefixed_text
+
+
+Markdown.elements["heading_open"] = Heading
 
 
 def get_latest_git_tag(repo: git.Repo) -> str:
@@ -291,7 +344,9 @@ def print_and_write_changelog(
         print("[yellow]No changes found, nothing to output.[/yellow]")
         return
     print()
-    print(changelog.strip("\n"))
+    # rich.Markdown 默认标题居中，需用 console.print 并设置参数 style 和 width
+    md = Markdown(changelog.strip("\n"), justify="left")
+    console.print(md, width=80)
     if output_path:
         if prepend:
             write_changelog_prepend(output_path, changelog)
@@ -305,32 +360,84 @@ def handle_changelog(args: ChangelogArgs, current_tag: str | None = None) -> Non
     from_raw = args.from_raw
     to_raw = args.to_raw
     latest_tag_in_file = None
+
     if args.output and Path(args.output).exists() and from_raw is None and to_raw is None:
         latest_tag_in_file = extract_latest_tag_from_changelog(args.output)
-    # 默认：统计所有 tag 之间的差分（不包含最新 tag 到 HEAD）
-    if from_raw is None and to_raw is None:
+
+    # 根据参数获取对应的分段
+    if from_raw is not None or to_raw is not None:
+        segments = _get_range_segments(repo, from_raw, to_raw)
+        prepend = False
+    else:
         segments = prepare_changelog_segments(repo, latest_tag_in_file, current_tag)
-        changelogs = ""
-        with Progress() as progress:
-            task = progress.add_task("Generating changelog...", total=len(segments))
-            for from_hash, to_hash, from_name, to_name in segments:
-                raw_commits = list(repo.iter_commits(f"{from_hash}...{to_hash}"))
-                tgit_commits = []
-                for commit in raw_commits:
-                    if m := commit_pattern.match(commit.message):
-                        message_dict = m.groupdict()
-                        tgit_commits.append(TGITCommit(repo, commit, message_dict))
-                commits_by_type = group_commits_by_type(tgit_commits)
-                try:
-                    origin_url = repo.remote().url
-                    remote_uri = get_remote_uri(origin_url)
-                except ValueError:
-                    remote_uri = None
-                changelog = generate_changelog(commits_by_type, from_name, to_name, remote_uri)
-                changelogs += changelog
-                progress.update(task, advance=1)
-        print_and_write_changelog(changelogs, args.output, prepend=bool(latest_tag_in_file))
-        return
+        prepend = bool(latest_tag_in_file)
+
+    # 生成 changelog
+    changelogs = _generate_changelogs_from_segments(repo, segments)
+
+    # 输出结果
+    print_and_write_changelog(changelogs, args.output, prepend=prepend)
+
+
+def _get_range_segments(repo: git.Repo, from_raw: str | None, to_raw: str | None) -> list:
+    """获取指定范围的分段"""
+    from_ref, to_ref = get_git_commits_range(repo, from_raw, to_raw)
+    segments = prepare_changelog_segments(repo)
+
+    # 找到 from_ref 和 to_ref 在分段中的索引
+    start, end = 0, len(segments)
+    for i, seg in enumerate(segments):
+        # 匹配 tag 名或 hash
+        if seg[2] == from_ref or seg[0] == from_ref:
+            start = i
+        if seg[3] == to_ref or seg[1] == to_ref:
+            end = i + 1
+
+    return segments[start:end]
+
+
+def _generate_changelogs_from_segments(repo: git.Repo, segments: list) -> str:
+    """从分段列表生成 changelog"""
+    changelogs = ""
+
+    with Progress() as progress:
+        task = progress.add_task("Generating changelog...", total=len(segments))
+
+        for from_hash, to_hash, from_name, to_name in segments:
+            # 获取提交信息
+            raw_commits = list(repo.iter_commits(f"{from_hash}...{to_hash}"))
+            tgit_commits = _process_commits(repo, raw_commits)
+            commits_by_type = group_commits_by_type(tgit_commits)
+
+            # 获取远程仓库信息
+            remote_uri = _get_remote_uri_safe(repo)
+
+            # 生成 changelog
+            changelog = generate_changelog(commits_by_type, from_name, to_name, remote_uri)
+            changelogs += changelog
+
+            progress.update(task, advance=1)
+
+    return changelogs
+
+
+def _process_commits(repo: git.Repo, raw_commits: list) -> list:
+    """处理原始提交，转换为 TGITCommit 对象"""
+    tgit_commits = []
+    for commit in raw_commits:
+        if m := commit_pattern.match(commit.message):
+            message_dict = m.groupdict()
+            tgit_commits.append(TGITCommit(repo, commit, message_dict))
+    return tgit_commits
+
+
+def _get_remote_uri_safe(repo: git.Repo) -> str | None:
+    """安全地获取远程仓库 URI"""
+    try:
+        origin_url = repo.remote().url
+        return get_remote_uri(origin_url)
+    except ValueError:
+        return None
 
 
 def get_changelog_by_range(repo: git.Repo, from_ref: str, to_ref: str) -> str:

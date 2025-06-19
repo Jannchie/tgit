@@ -51,6 +51,7 @@ select = ["ALL"]
 
 ignore = [
     "PGH",
+    "RUF002",
     "RUF003",
     "BLE001",
     "ERA001",
