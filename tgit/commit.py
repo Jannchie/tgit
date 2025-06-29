@@ -1,4 +1,5 @@
 import argparse
+import importlib
 import importlib.resources
 import itertools
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ commit_prompt_template = env.get_template("commit.txt")
 
 MAX_DIFF_LINES = 1000
 NUMSTAT_PARTS = 3
+NAME_STATUS_PARTS = 2
+RENAME_STATUS_PARTS = 3
 
 
 def define_commit_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -60,25 +63,123 @@ class CommitData(BaseModel):
     is_breaking: bool
 
 
-def get_filtered_diff_files(repo: git.Repo) -> tuple[list[str], list[str]]:
-    diff_numstat = repo.git.diff("--cached", "--numstat")
-    files_to_include = []
-    lock_files = []
+def get_changed_files_from_status(repo: git.Repo) -> set[str]:
+    """获取所有变更的文件，包括重命名/移动的文件"""
+    diff_name_status = repo.git.diff("--cached", "--name-status", "-M")
+    all_changed_files = set()
+
+    for line in diff_name_status.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= NAME_STATUS_PARTS:
+            status = parts[0]
+            if status.startswith("R"):  # 重命名/移动
+                # 重命名格式: R100    old_file    new_file
+                if len(parts) >= RENAME_STATUS_PARTS:
+                    old_file, new_file = parts[1], parts[2]
+                    all_changed_files.add(old_file)
+                    all_changed_files.add(new_file)
+            else:
+                # 其他状态: A(添加), M(修改), D(删除)等
+                filename = parts[1]
+                all_changed_files.add(filename)
+
+    return all_changed_files
+
+
+def get_file_change_sizes(repo: git.Repo) -> dict[str, int]:
+    """获取文件变更的行数统计"""
+    diff_numstat = repo.git.diff("--cached", "--numstat", "-M")
+    file_sizes = {}
+
     for line in diff_numstat.splitlines():
         parts = line.split("\t")
         if len(parts) >= NUMSTAT_PARTS:
             added, deleted, filename = parts[0], parts[1], parts[2]
-            if filename.endswith(".lock"):
-                lock_files.append(filename)
-                continue
             try:
-                added = int(added) if added != "-" else 0
-                deleted = int(deleted) if deleted != "-" else 0
+                added_int = int(added) if added != "-" else 0
+                deleted_int = int(deleted) if deleted != "-" else 0
+                file_sizes[filename] = added_int + deleted_int
             except ValueError:
-                continue
-            if added + deleted <= MAX_DIFF_LINES:
-                files_to_include.append(filename)
+                # 对于二进制文件等特殊情况，设置为0以包含在diff中
+                file_sizes[filename] = 0
+
+    return file_sizes
+
+
+def get_filtered_diff_files(repo: git.Repo) -> tuple[list[str], list[str]]:
+    """获取过滤后的差异文件列表"""
+    all_changed_files = get_changed_files_from_status(repo)
+    file_sizes = get_file_change_sizes(repo)
+
+    files_to_include = []
+    lock_files = []
+
+    # 过滤文件
+    for filename in all_changed_files:
+        if filename.endswith(".lock"):
+            lock_files.append(filename)
+            continue
+
+        # 检查文件大小（如果有统计信息）
+        total_changes = file_sizes.get(filename, 0)
+        if total_changes <= MAX_DIFF_LINES:
+            files_to_include.append(filename)
+
     return files_to_include, lock_files
+
+
+def _import_openai():  # type: ignore[misc]  # noqa: ANN202
+    """动态导入 openai 包"""
+    try:
+        # 动态导入，避免在模块级别导入
+        return importlib.import_module("openai")
+    except ImportError as e:
+        error_msg = "openai package is not installed"
+        raise ImportError(error_msg) from e
+
+
+def _check_openai_availability() -> None:
+    """检查 openai 包是否可用"""
+    _import_openai()  # 这会在包不可用时抛出异常
+
+
+def _create_openai_client():  # type: ignore[misc]  # noqa: ANN202
+    """创建并配置 OpenAI 客户端"""
+    openai = _import_openai()
+    client = openai.Client()
+    api_url = settings.get("apiUrl")
+    if api_url:
+        client.base_url = api_url
+    api_key = settings.get("apiKey")
+    if api_key:
+        client.api_key = api_key
+    return client
+
+
+def _generate_commit_with_ai(diff: str, specified_type: str | None, current_branch: str) -> CommitData | None:
+    """使用 AI 生成提交消息"""
+    _check_openai_availability()
+    client = _create_openai_client()
+
+    template_params = {"types": commit_types, "branch": current_branch}
+    if specified_type:
+        template_params["specified_type"] = specified_type
+
+    with console.status("[bold green]Generating commit message...[/bold green]"):
+        chat_completion = client.responses.parse(
+            input=[
+                {
+                    "role": "system",
+                    "content": commit_prompt_template.render(**template_params),
+                },
+                {"role": "user", "content": diff},
+            ],
+            model=settings.get("model", "gpt-4.1"),
+            max_output_tokens=50,
+            text_format=CommitData,
+        )
+
+    return chat_completion.output_parsed
 
 
 def get_ai_command(specified_type: str | None = None) -> str | None:
@@ -88,51 +189,32 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
     except git.InvalidGitRepositoryError:
         print("[yellow]Not a git repository[/yellow]")
         return None
+
     files_to_include, lock_files = get_filtered_diff_files(repo)
     if not files_to_include and not lock_files:
         print("[yellow]No files to commit, please add some files before using AI[/yellow]")
         return None
+
     diff = ""
     if lock_files:
         diff += f"[INFO] The following lock files were modified but are not included in the diff: {', '.join(lock_files)}\n"
     if files_to_include:
-        diff += repo.git.diff("--cached", "--", *files_to_include)
+        diff += repo.git.diff("--cached", "-M", "--", *files_to_include)
     current_branch = repo.active_branch.name
 
     if not diff:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
         return None
+
     try:
-        import openai
-
-        client = openai.Client()
-        if settings.get("apiUrl", None):
-            client.api_base = settings.get("apiUrl", None)
-        if settings.get("apiKey", None):
-            client.api_key = settings.get("apiKey", None)
-        # 准备模板渲染参数，如果用户指定了类型，则传递给模板
-        template_params = {"types": commit_types, "branch": current_branch}
-
-        if specified_type:
-            template_params["specified_type"] = specified_type
-        with console.status("[bold green]Generating commit message...[/bold green]"):
-            chat_completion = client.responses.parse(
-                input=[
-                    {
-                        "role": "system",
-                        "content": commit_prompt_template.render(**template_params),
-                    },
-                    {"role": "user", "content": diff},
-                ],
-                model=settings.get("model", "gpt-4.1"),
-                max_output_tokens=50,
-                text_format=CommitData,
-            )
+        resp = _generate_commit_with_ai(diff, specified_type, current_branch)
+        if resp is None:
+            print("[red]Failed to parse AI response[/red]")
+            return None
     except Exception as e:
         print("[red]Could not connect to AI provider[/red]")
         print(e)
         return None
-    resp = chat_completion.output_parsed
 
     # 如果用户指定了类型，则使用用户指定的类型
     commit_type = specified_type or resp.type
