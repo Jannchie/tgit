@@ -1,3 +1,11 @@
+## v0.17.1
+
+[v0.17.0...v0.17.1](https://github.com/Jannchie/tgit/compare/v0.17.0...v0.17.1)
+
+### :art: Refactors
+
+- **ai**: modularize ai client creation and file filtering - By [Jannchie](mailto:jannchie@gmail.com) in [8071a1c](https://github.com/Jannchie/tgit/commit/8071a1c)
+
 ## v0.17.0
 
 [v0.16.0...v0.17.0](https://github.com/Jannchie/tgit/compare/v0.16.0...v0.17.0)
