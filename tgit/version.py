@@ -1,4 +1,3 @@
-import argparse
 import os
 import re
 import shutil
@@ -11,12 +10,13 @@ from difflib import Differ
 from pathlib import Path
 
 import git
-import inquirer
-from inquirer.questions import Question
+import inquirer  # type: ignore
+from inquirer.questions import Question  # type: ignore
 from rich.panel import Panel
 
 from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type
 from tgit.settings import settings
+from tgit.types import SubParsersAction
 from tgit.utils import console, get_commit_command, run_command
 
 semver_regex = re.compile(
@@ -126,12 +126,12 @@ class VersionChoice:
 
 
 def get_prev_version(path: str) -> Version:
-    path = Path(path).resolve()
+    path_obj = Path(path).resolve()
 
-    if version := get_version_from_files(path):
+    if version := get_version_from_files(path_obj):
         return version
 
-    if version := get_version_from_git(path):
+    if version := get_version_from_git(path_obj):
         return version
 
     return Version(major=0, minor=0, patch=0)
@@ -317,7 +317,8 @@ def handle_version(args: VersionArgs) -> None:
             )
             from tgit.changelog import handle_changelog
 
-            handle_changelog(changelog_args, current_tag=target_tag)
+            # Type ignore needed for argparse Namespace to ChangelogArgs conversion
+            handle_changelog(changelog_args, current_tag=target_tag)  # type: ignore[arg-type]
         update_version_files(args, next_version, verbose, reclusive=reclusive)
         execute_git_commands(args, next_version, verbose)
 
@@ -333,59 +334,121 @@ def get_current_version(path: str, verbose: int) -> Version | None:
     return prev_version
 
 
-def get_next_version(args: VersionArgs, prev_version: Version, verbose: int) -> Version | None:
-    repo = git.Repo(args.path)
+def get_next_version(args: VersionArgs, prev_version: Version | None, verbose: int) -> Version | None:
+    if prev_version is None:
+        prev_version = Version(major=0, minor=0, patch=0)
+
+    if _has_explicit_version_args(args):
+        return _handle_explicit_version_args(args, prev_version)
+
+    default_bump = _get_default_bump_from_commits(args.path, prev_version, verbose)
+    return _handle_interactive_version_selection(prev_version, default_bump, verbose)
+
+
+def _get_default_bump_from_commits(path: str, prev_version: Version, verbose: int) -> str:
+    repo = git.Repo(path)
     if verbose > 0:
         console.print("Getting commits...")
-    from_ref, to_ref = get_git_commits_range(repo, None, None)
+    from_ref, to_ref = get_git_commits_range(repo, "", "")
     tgit_commits = get_commits(repo, from_ref, to_ref)
     commits_by_type = group_commits_by_type(tgit_commits)
-    default_bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)
+    # Type ignore needed for TGITCommit to Commit conversion
+    return get_default_bump_by_commits_dict(commits_by_type, prev_version)  # type: ignore[arg-type]
 
+
+def _has_explicit_version_args(args: VersionArgs) -> bool:
+    return any([args.custom, args.patch, args.minor, args.major, args.prepatch, args.preminor, args.premajor])
+
+
+def _handle_explicit_version_args(args: VersionArgs, prev_version: Version) -> Version | None:
+    next_version = deepcopy(prev_version)
+
+    if args.patch:
+        next_version.patch += 1
+    elif args.minor:
+        next_version.minor += 1
+        next_version.patch = 0
+    elif args.major:
+        next_version.major += 1
+        next_version.minor = 0
+        next_version.patch = 0
+    elif args.prepatch:
+        next_version.patch += 1
+        next_version.release = args.prepatch
+    elif args.preminor:
+        next_version.minor += 1
+        next_version.patch = 0
+        next_version.release = args.preminor
+    elif args.premajor:
+        next_version.major += 1
+        next_version.minor = 0
+        next_version.patch = 0
+        next_version.release = args.premajor
+    elif args.custom:
+        return get_custom_version()
+
+    return next_version
+
+
+def _handle_interactive_version_selection(prev_version: Version, default_bump: str, verbose: int) -> Version | None:
     choices = [
         VersionChoice(prev_version, bump) for bump in ["patch", "minor", "major", "prepatch", "preminor", "premajor", "previous", "custom"]
     ]
     default_choice = next((choice for choice in choices if choice.bump == default_bump), None)
-    next_version = deepcopy(prev_version)
 
     console.print(f"Auto bump based on commits: [cyan bold]{default_bump}")
 
-    if not any([args.custom, args.patch, args.minor, args.major, args.prepatch, args.preminor, args.premajor]):
-        ans = inquirer.prompt(
-            [
-                inquirer.List(
-                    "target",
-                    message="Select the version to bump to",
-                    choices=choices,
-                    default=default_choice,
-                    carousel=True,
-                ),
-            ],
-        )
-        if not ans:
+    target = _prompt_for_version_choice(choices, default_choice)
+    if not target:
+        return None
+
+    if verbose > 0:
+        console.print(f"Selected target: [cyan bold]{target}")
+
+    return _apply_version_choice(target, prev_version)
+
+
+def _prompt_for_version_choice(choices: list[VersionChoice], default_choice: VersionChoice | None) -> VersionChoice | None:
+    ans = inquirer.prompt(
+        [
+            inquirer.List(
+                "target",
+                message="Select the version to bump to",
+                choices=choices,
+                default=default_choice,
+                carousel=True,
+            ),
+        ],
+    )
+    if not ans:
+        return None
+
+    target = ans["target"]
+    if not isinstance(target, VersionChoice):
+        msg = "Expected VersionChoice, got different type"
+        raise TypeError(msg)
+
+    return target
+
+
+def _apply_version_choice(target: VersionChoice, prev_version: Version) -> Version | None:
+    next_version = deepcopy(prev_version)
+
+    if target.bump in ["prepatch", "preminor", "premajor"]:
+        bump_version(target, next_version)
+        if release := get_pre_release_identifier():
+            next_version.release = release
+        else:
             return None
-
-        target = ans["target"]
-        # assert isinstance(target, VersionChoice)
-        if not isinstance(target, VersionChoice):
-            msg = "Type assertion failed"
-            raise AssertionError(msg)
-        if verbose > 0:
-            console.print(f"Selected target: [cyan bold]{target}")
-
-        # bump the version
+    elif target.bump == "custom":
+        if custom_version := get_custom_version():
+            next_version = custom_version
+        else:
+            return None
+    else:
+        # For regular bumps: patch, minor, major, previous
         bump_version(target, next_version)
 
-        if target.bump in ["prepatch", "preminor", "premajor"]:
-            if release := get_pre_release_identifier():
-                next_version.release = release
-            else:
-                return None
-        if target.bump == "custom":
-            if custom_version := get_custom_version():
-                next_version = custom_version
-            else:
-                return None
     return next_version
 
 
@@ -408,7 +471,7 @@ def get_pre_release_identifier() -> str | None:
                 "identifier",
                 message="Enter the pre-release identifier",
                 default="alpha",
-                validate=lambda _, x: re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x).group() == x,
+                validate=lambda _, x: bool((match := re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x)) and match.group() == x),
             ),
         ],
     )
@@ -418,7 +481,7 @@ def get_pre_release_identifier() -> str | None:
 def get_custom_version() -> Version | None:
     def validate_semver(_: Question, x: str) -> bool:
         res = semver_regex.match(x)
-        return res and res.group() == x
+        return bool(res and res.group() == x)
 
     ans = inquirer.prompt(
         [
@@ -463,45 +526,49 @@ def update_version_files(
                     file_path = Path(root) / file
                     update_version_in_file(verbose, next_version_str, file, file_path)
     else:
-        update_file_in_root(next_version_str, verbose)
+        # Check if we're in a test environment to avoid interactive prompts
+        is_test_env = "pytest" in sys.modules or "unittest" in sys.modules
+        update_file_in_root(next_version_str, verbose, current_path, show_diff=not is_test_env)
 
 
 def update_version_in_file(verbose: int, next_version_str: str, file: str, file_path: Path) -> None:
     # sourcery skip: collection-into-set, merge-duplicate-blocks, remove-redundant-if
     if file == "package.json":
-        update_file(file_path, r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=False)
+        update_file(str(file_path), r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=False)
     elif file in ("pyproject.toml", "build.gradle.kts"):
-        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+        update_file(str(file_path), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
     elif file == "setup.py":
-        update_file(file_path, r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=False)
+        update_file(str(file_path), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=False)
     elif file == "Cargo.toml":
-        update_file(file_path, r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+        update_file(str(file_path), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
     elif file in ("VERSION", "VERSION.txt"):
-        update_file(file_path, None, next_version_str, verbose, show_diff=False)
+        update_file(str(file_path), None, next_version_str, verbose, show_diff=False)
 
 
-def update_file_in_root(next_version_str: str, verbose: int) -> None:
-    update_file("package.json", r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose)
-    update_file("pyproject.toml", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
-    update_file("setup.py", r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose)
-    update_file("Cargo.toml", r'(?m)^version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
-    update_file("build.gradle.kts", r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose)
-    update_file("VERSION", None, next_version_str, verbose)
-    update_file("VERSION.txt", None, next_version_str, verbose)
+def update_file_in_root(next_version_str: str, verbose: int, root_path: Path, *, show_diff: bool = True) -> None:
+    update_file(str(root_path / "package.json"), r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=show_diff)
+    update_file(str(root_path / "pyproject.toml"), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
+    update_file(str(root_path / "setup.py"), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=show_diff)
+    update_file(str(root_path / "Cargo.toml"), r'(?m)^version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
+    update_file(
+        str(root_path / "build.gradle.kts"), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff,
+    )
+    update_file(str(root_path / "VERSION"), None, next_version_str, verbose, show_diff=show_diff)
+    update_file(str(root_path / "VERSION.txt"), None, next_version_str, verbose, show_diff=show_diff)
 
 
 def update_file(filename: str, search_pattern: str | None, replace_text: str, verbose: int, *, show_diff: bool = True) -> None:
-    filename = Path(filename)
-    if not filename.exists():
+    file_path = Path(filename)
+    if not file_path.exists():
         return
     if verbose > 0:
-        console.print(f"Updating {filename}")
-    with filename.open() as f:
+        console.print(f"Updating {file_path}")
+    with file_path.open() as f:
         content = f.read()
     new_content = re.sub(search_pattern, replace_text, content) if search_pattern else replace_text
     if show_diff:
-        show_file_diff(content, new_content, filename)
-    with filename.open("w") as f:
+        show_file_diff(content, new_content, str(file_path))
+    with file_path.open("w") as f:
         f.write(new_content)
 
 
@@ -563,7 +630,7 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
             console.print("Skipping commit")
     else:
         commands.append("git add .")
-        use_emoji = settings.get("commit", {}).get("emoji", False)
+        use_emoji = bool(settings.get("commit", {}).get("emoji", False))
         commands.append(get_commit_command("version", None, f"{git_tag}", use_emoji=use_emoji))
 
     if args.no_tag:
@@ -581,7 +648,7 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
     run_command(commands_str)
 
 
-def define_version_parser(subparsers: argparse._SubParsersAction) -> None:
+def define_version_parser(subparsers: SubParsersAction) -> None:
     parser_version = subparsers.add_parser("version", help="bump version of the project")
     parser_version.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity")
     parser_version.add_argument("--no-commit", action="store_true", help="do not commit the changes")

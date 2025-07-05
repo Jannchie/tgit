@@ -1,4 +1,3 @@
-import argparse
 import importlib
 import importlib.resources
 import itertools
@@ -11,6 +10,7 @@ from pydantic import BaseModel
 from rich import get_console, print
 
 from tgit.settings import settings
+from tgit.types import Settings, SubParsersAction
 from tgit.utils import get_commit_command, run_command, type_emojis
 
 console = get_console()
@@ -27,13 +27,16 @@ NAME_STATUS_PARTS = 2
 RENAME_STATUS_PARTS = 3
 
 
-def define_commit_parser(subparsers: argparse._SubParsersAction) -> None:
+def define_commit_parser(subparsers: SubParsersAction) -> None:
     commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
-    commit_settings = settings.get("commit", {})
-    types_settings = commit_settings.get("types", [])
+    commit_settings: Settings = settings.get("commit", {})
+    types_settings: list[Settings] = commit_settings.get("types", [])
     for data in types_settings:
-        type_emojis[data.get("type")] = data.get("emoji")
-        commit_type.append(data.get("type"))
+        emoji = data.get("emoji")
+        type_name = data.get("type")
+        if emoji and type_name:
+            type_emojis[type_name] = emoji
+            commit_type.append(type_name)
 
     parser_commit = subparsers.add_parser("commit", help="commit changes following the conventional commit format")
     parser_commit.add_argument(
@@ -66,7 +69,7 @@ class CommitData(BaseModel):
 def get_changed_files_from_status(repo: git.Repo) -> set[str]:
     """获取所有变更的文件，包括重命名/移动的文件"""
     diff_name_status = repo.git.diff("--cached", "--name-status", "-M")
-    all_changed_files = set()
+    all_changed_files: set[str] = set()
 
     for line in diff_name_status.splitlines():
         parts = line.split("\t")
@@ -89,7 +92,7 @@ def get_changed_files_from_status(repo: git.Repo) -> set[str]:
 def get_file_change_sizes(repo: git.Repo) -> dict[str, int]:
     """获取文件变更的行数统计"""
     diff_numstat = repo.git.diff("--cached", "--numstat", "-M")
-    file_sizes = {}
+    file_sizes: dict[str, int] = {}
 
     for line in diff_numstat.splitlines():
         parts = line.split("\t")
@@ -111,8 +114,8 @@ def get_filtered_diff_files(repo: git.Repo) -> tuple[list[str], list[str]]:
     all_changed_files = get_changed_files_from_status(repo)
     file_sizes = get_file_change_sizes(repo)
 
-    files_to_include = []
-    lock_files = []
+    files_to_include: list[str] = []
+    lock_files: list[str] = []
 
     # 过滤文件
     for filename in all_changed_files:
@@ -148,10 +151,10 @@ def _create_openai_client():  # type: ignore[misc]  # noqa: ANN202
     openai = _import_openai()
     client = openai.Client()
     api_url = settings.get("apiUrl")
-    if api_url:
+    if api_url and isinstance(api_url, str):
         client.base_url = api_url
     api_key = settings.get("apiKey")
-    if api_key:
+    if api_key and isinstance(api_key, str):
         client.api_key = api_key
     return client
 
@@ -161,7 +164,7 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
     _check_openai_availability()
     client = _create_openai_client()
 
-    template_params = {"types": commit_types, "branch": current_branch}
+    template_params: dict[str, str | list[str]] = {"types": commit_types, "branch": current_branch}
     if specified_type:
         template_params["specified_type"] = specified_type
 
@@ -174,7 +177,7 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
                 },
                 {"role": "user", "content": diff},
             ],
-            model=settings.get("model", "gpt-4.1"),
+            model=str(settings.get("model", "gpt-4.1")),
             max_output_tokens=50,
             text_format=CommitData,
         )
@@ -223,7 +226,7 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         commit_type,
         resp.scope,
         resp.msg,
-        use_emoji=settings.get("commit", {}).get("emoji", False),
+        use_emoji=bool(settings.get("commit", {}).get("emoji", False)),
         is_breaking=resp.is_breaking,
     )
 
@@ -265,7 +268,7 @@ def handle_commit(args: CommitArgs) -> None:
             return
         use_emoji = args.emoji
         if use_emoji is False:
-            use_emoji = settings.get("commit", {}).get("emoji", False)
+            use_emoji = bool(settings.get("commit", {}).get("emoji", False))
         is_breaking = args.breaking
         command = get_commit_command(commit_type, commit_scope, commit_msg, use_emoji=use_emoji, is_breaking=is_breaking)
 

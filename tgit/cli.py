@@ -24,7 +24,6 @@ def main() -> None:
     )
     parser.add_argument("--version", action="store_true", help="show version")
     subparsers = parser.add_subparsers(title="Subcommands")
-
     define_commit_parser(subparsers)
     define_version_parser(subparsers)
     define_changelog_parser(subparsers)

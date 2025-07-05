@@ -4,3 +4,25 @@ dist
 *.egg
 __pycache__
 .DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+.cache/
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Virtual environments
+venv/
+env/
+.env
+
+# Temporary files
+*.tmp
+*.temp
+.temp/

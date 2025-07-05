@@ -1,0 +1,9 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-python.pylint",
+        "charliermarsh.ruff",
+        "ryanluker.vscode-coverage-gutters",
+        "tamasfe.even-better-toml"
+    ]
+}

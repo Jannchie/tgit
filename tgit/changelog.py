@@ -2,7 +2,6 @@ import contextlib
 import logging
 import re
 import warnings
-from argparse import _SubParsersAction
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +15,7 @@ from rich.panel import Panel
 from rich.progress import Progress
 from rich.text import Text
 
+from tgit.types import SubParsersAction
 from tgit.utils import console
 
 logger = logging.getLogger("tgit")
@@ -25,7 +25,7 @@ class Heading(TextElement):
     """A heading."""
 
     @classmethod
-    def create(cls, _markdown: Markdown, token: Token) -> "Heading":
+    def create(cls, markdown: Markdown, token: Token) -> "Heading":  # noqa: ARG003
         return cls(token.tag)
 
     def on_enter(self, context: MarkdownContext) -> None:
@@ -48,7 +48,7 @@ class Heading(TextElement):
 
         # 创建带有 # 前缀的文本
         prefixed_text = Text(hash_prefix) + Text.from_markup(self.text.plain)
-        prefixed_text.justify = ""
+        prefixed_text.justify = None
 
         if self.tag == "h1":
             # Draw a border around h1s
@@ -67,11 +67,11 @@ class Heading(TextElement):
 Markdown.elements["heading_open"] = Heading
 
 
-def get_latest_git_tag(repo: git.Repo) -> str:
+def get_latest_git_tag(repo: git.Repo) -> str | None:
     return get_tag_by_idx(repo, -1)
 
 
-def get_tag_by_idx(repo: git.Repo, idx: int) -> str:
+def get_tag_by_idx(repo: git.Repo, idx: int) -> str | None:
     try:
         if tags := sorted(repo.tags, key=lambda t: t.commit.committed_datetime):
             return tags[idx].name
@@ -81,14 +81,14 @@ def get_tag_by_idx(repo: git.Repo, idx: int) -> str:
         return None
 
 
-def get_first_commit_hash(repo: git.Repo) -> str:
+def get_first_commit_hash(repo: git.Repo) -> str | None:
     return next(
         (commit.hexsha for commit in repo.iter_commits() if not commit.parents),
         None,
     )
 
 
-def get_commit_hash_from_tag(repo: git.Repo, tag: str) -> str:
+def get_commit_hash_from_tag(repo: git.Repo, tag: str) -> str | None:
     try:
         return repo.tags[tag].commit.hexsha
     except Exception:
@@ -96,12 +96,12 @@ def get_commit_hash_from_tag(repo: git.Repo, tag: str) -> str:
         return None
 
 
-def define_changelog_parser(subparsers: _SubParsersAction) -> None:
-    parser_changelog = subparsers.add_parser("changelog", help="generate changelogs")
-    parser_changelog.add_argument("-f", "--from", help="From hash/tag", type=str, dest="from_raw")
-    parser_changelog.add_argument("-t", "--to", help="To hash/tag", type=str, dest="to_raw")
-    parser_changelog.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity", dest="verbose")
-    parser_changelog.add_argument(
+def define_changelog_parser(subparsers: SubParsersAction) -> None:  # type: ignore[type-arg]
+    parser_changelog = subparsers.add_parser("changelog", help="generate changelogs")  # type: ignore
+    parser_changelog.add_argument("-f", "--from", help="From hash/tag", type=str, dest="from_raw")  # type: ignore
+    parser_changelog.add_argument("-t", "--to", help="To hash/tag", type=str, dest="to_raw")  # type: ignore
+    parser_changelog.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity", dest="verbose")  # type: ignore
+    parser_changelog.add_argument(  # type: ignore
         "-o",
         "--output",
         help="output file",
@@ -124,7 +124,7 @@ class ChangelogArgs:
     output: str
 
 
-def get_simple_hash(repo: git.Repo, git_hash: str, length: int = 7) -> str:
+def get_simple_hash(repo: git.Repo, git_hash: str, length: int = 7) -> str | None:
     try:
         return repo.git.rev_parse(git_hash, short=length)
     except Exception:
@@ -132,7 +132,7 @@ def get_simple_hash(repo: git.Repo, git_hash: str, length: int = 7) -> str:
         return None
 
 
-def ref_to_hash(repo: git.Repo, ref: str, length: int = 7) -> str:
+def ref_to_hash(repo: git.Repo, ref: str, length: int = 7) -> str | None:
     try:
         return repo.git.rev_parse(ref, short=length)
     except Exception:
@@ -146,11 +146,14 @@ commit_pattern = re.compile(
 )
 
 
-def resolve_from_ref(repo: git.Repo, from_raw: str) -> str:
-    if from_raw is not None:
+def resolve_from_ref(repo: git.Repo, from_raw: str | None) -> str:
+    if from_raw is not None and from_raw:
         return from_raw
     last_tag = get_latest_git_tag(repo)
-    return get_first_commit_hash(repo) if last_tag is None else last_tag
+    if last_tag is None:
+        first_commit = get_first_commit_hash(repo)
+        return first_commit if first_commit is not None else ""
+    return last_tag
 
 
 @dataclass
@@ -163,14 +166,14 @@ class Author:
 
 
 class TGITCommit:
-    def __init__(self, repo: git.Repo, commit: git.Commit, message_dict: dict) -> None:
+    def __init__(self, repo: git.Repo, commit: git.Commit, message_dict: dict[str, str]) -> None:
         commit_date = commit.committed_datetime
 
-        co_author_raws = [line for line in commit.message.split("\n") if line.lower().startswith("co-authored-by:")]
+        co_author_raws = [line for line in commit.message.split("\n") if line.lower().startswith("co-authored-by:")]  # type: ignore
         co_author_pattern = re.compile(r"Co-authored-by: (?P<name>.+?) <(?P<email>.+?)>", re.IGNORECASE)
-        co_authors = [co_author_pattern.match(co_author).groupdict() for co_author in co_author_raws]
-        authors = [{"name": commit.author.name, "email": commit.author.email}, *co_authors]
-        self.authors: list[Author] = [Author(**kwargs) for kwargs in authors]
+        co_authors = [co_author_pattern.match(co_author).groupdict() for co_author in co_author_raws]  # type: ignore
+        authors = [{"name": commit.author.name, "email": commit.author.email}, *co_authors]  # type: ignore
+        self.authors: list[Author] = [Author(**kwargs) for kwargs in authors]  # type: ignore
         self.date = commit_date
         self.emoji = message_dict.get("emoji")
         self.type = message_dict.get("type")
@@ -207,7 +210,7 @@ def format_names(names: list[str]) -> str:
     return f"By {formatted_names}"
 
 
-def get_remote_uri(url: str) -> str:
+def get_remote_uri(url: str) -> str | None:
     # SSH URL regex, with groups for domain, namespace and repo name
     ssh_pattern = re.compile(r"git@([\w\.]+):(.+)/(.+)\.git")
     # HTTPS URL regex, with groups for domain, namespace and repo name
@@ -228,14 +231,15 @@ def get_commits(repo: git.Repo, from_hash: str, to_hash: str) -> list[TGITCommit
     raw_commits = list(repo.iter_commits(f"{from_hash}...{to_hash}"))
     tgit_commits = []
     for commit in raw_commits:
-        if m := commit_pattern.match(commit.message):
+        message = commit.message.decode() if isinstance(commit.message, bytes) else commit.message
+        if m := commit_pattern.match(message):
             message_dict = m.groupdict()
             tgit_commits.append(TGITCommit(repo, commit, message_dict))
     return tgit_commits
 
 
 def group_commits_by_type(commits: list[TGITCommit]) -> dict[str, list[TGITCommit]]:
-    commits_by_type = defaultdict(list)
+    commits_by_type = defaultdict[str, list[TGITCommit]](list[TGITCommit])
     for commit in commits:
         if commit.breaking:
             commits_by_type["breaking"].append(commit)
@@ -433,7 +437,8 @@ def _process_commits(repo: git.Repo, raw_commits: list) -> list:
     """处理原始提交，转换为 TGITCommit 对象"""
     tgit_commits = []
     for commit in raw_commits:
-        if m := commit_pattern.match(commit.message):
+        message = commit.message.decode() if isinstance(commit.message, bytes) else commit.message
+        if m := commit_pattern.match(message):
             message_dict = m.groupdict()
             tgit_commits.append(TGITCommit(repo, commit, message_dict))
     return tgit_commits
@@ -461,7 +466,7 @@ def get_changelog_by_range(repo: git.Repo, from_ref: str, to_ref: str) -> str:
     return generate_changelog(commits_by_type, from_ref, to_ref, remote_uri)
 
 
-def get_git_commits_range(repo: git.Repo, from_raw: str, to_raw: str) -> tuple[str, str]:
-    from_ref = resolve_from_ref(repo, from_raw)
-    to_ref = "HEAD" if to_raw is None else to_raw
+def get_git_commits_range(repo: git.Repo, from_raw: str | None, to_raw: str | None) -> tuple[str, str]:
+    from_ref = resolve_from_ref(repo, from_raw if from_raw else None)
+    to_ref = to_raw if to_raw else "HEAD"
     return from_ref, to_ref

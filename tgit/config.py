@@ -2,10 +2,12 @@ import argparse
 
 from rich import print
 
+from tgit.types import SubParsersAction
+
 from .settings import set_global_settings
 
 
-def define_config_parser(subparsers: argparse._SubParsersAction) -> None:
+def define_config_parser(subparsers: SubParsersAction) -> None:
     # edit api key / edit api url
     parser_config = subparsers.add_parser("config", help="edit settings")
     parser_config.add_argument("key", help="setting key")
