@@ -456,7 +456,7 @@ def bump_version(target: VersionChoice, next_version: Version) -> None:
 
 
 def get_pre_release_identifier() -> str | None:
-    ans = questionary.text(
+    return questionary.text(
         "Enter the pre-release identifier",
         default="alpha",
         validate=lambda x: bool((match := re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x)) and match.group() == x),
