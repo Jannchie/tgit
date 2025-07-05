@@ -563,6 +563,7 @@ def show_file_diff(old_content: str, new_content: str, filename: str) -> None:
     diffs = []
     format_diff_lines(diff, print_lines, diffs)
     if diffs:
+        console.print()
         console.print(f"[cyan]Diff for {filename}:[/cyan]")
         console.print("\n".join(diffs))
         ok = questionary.confirm("Do you want to continue?", default=True).ask()
