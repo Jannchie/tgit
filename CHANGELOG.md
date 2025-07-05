@@ -1,3 +1,7 @@
+## v0.19.1
+
+[v0.19.0...v0.19.1](https://github.com/Jannchie/tgit/compare/v0.19.0...v0.19.1)
+
 ## v0.19.0
 
 [v0.18.0...v0.19.0](https://github.com/Jannchie/tgit/compare/v0.18.0...v0.19.0)

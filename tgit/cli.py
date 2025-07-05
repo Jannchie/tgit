@@ -2,18 +2,15 @@ import contextlib
 import importlib.metadata
 import threading
 
-import rich
-import rich.traceback
 import typer
 
 from tgit.add import add
 from tgit.changelog import changelog
 from tgit.commit import commit
 from tgit.config import config
+from tgit.settings_command import settings
 from tgit.utils import console
 from tgit.version import version
-
-rich.traceback.install()
 
 app = typer.Typer(
     name="tgit",
@@ -27,6 +24,7 @@ app.command("version", help="bump version of the project")(version)
 app.command("changelog", help="generate changelogs")(changelog)
 app.command("add", help="same as git add")(add)
 app.command("config", help="edit settings")(config)
+app.command("settings", help="interactive settings configuration")(settings)
 
 
 def version_callback(*, value: bool) -> None:

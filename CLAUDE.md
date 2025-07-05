@@ -100,6 +100,6 @@ No specific test framework is configured. Check if tests exist before adding new
 
 ### Dependencies
 
-- Core: rich, pyyaml, inquirer, gitpython, openai, jinja2, beautifulsoup4
+- Core: rich, pyyaml, questionary, gitpython, openai, jinja2, beautifulsoup4
 - Build: hatchling via uv
 - Code quality: ruff (configured for line length 140, extensive rule set)

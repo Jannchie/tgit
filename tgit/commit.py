@@ -223,8 +223,8 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         print(e)
         return None
 
-    # 如果用户指定了类型，则使用用户指定的类型
-    commit_type = specified_type or resp.type
+    # 如果用户指定了类型，则使用用户指定的类型，否则使用 AI 生成的类型
+    commit_type = specified_type if specified_type is not None else resp.type
 
     return get_commit_command(
         commit_type,

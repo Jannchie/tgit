@@ -4,12 +4,12 @@ You are a git commit message generator. Analyze the provided diff and generate a
 
 ## Current Context
 - **Branch**: {{ branch }}
-- **Commit Type**: {% if specified_type is defined %}"{{ specified_type }}" (user-specified - MUST be used){% else %}Choose from: {{ types | join(', ') }}{% endif %}
+- **Commit Type**: {% if specified_type is not none %}"{{ specified_type }}" (user-specified - MUST be used){% else %}Choose from: {{ types | join(', ') }}{% endif %}
 
 ## Commit Message Requirements
 
 ### Type
-{% if specified_type is defined %}
+{% if specified_type is not none %}
 **MANDATORY**: Use "{{ specified_type }}" as specified by the user.
 {% else %}
 Select the most appropriate type from the available options based on the nature of the changes.
