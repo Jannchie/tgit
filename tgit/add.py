@@ -1,16 +1,11 @@
-import argparse
+import typer
 
-from tgit.types import SubParsersAction
 from tgit.utils import simple_run_command
 
 
-def define_add_parser(subparsers: SubParsersAction) -> None:
-    parser_add = subparsers.add_parser("add", help="same as git add")
-    parser_add.add_argument("files", help="files to add", nargs="*")
-    parser_add.set_defaults(func=handle_add)
-
-
-def handle_add(args: argparse.Namespace) -> None:
-    files = " ".join(args.files)
-    command = f"git add {files}"
+def add(
+    files: list[str] = typer.Argument(..., help="files to add"),
+) -> None:
+    files_str = " ".join(files)
+    command = f"git add {files_str}"
     simple_run_command(command)

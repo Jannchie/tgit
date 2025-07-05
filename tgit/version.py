@@ -13,11 +13,11 @@ from pathlib import Path
 
 import git
 import questionary
+import typer
 from questionary import Choice
 
 from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type, handle_changelog
 from tgit.settings import settings
-from tgit.types import SubParsersAction
 from tgit.utils import console, get_commit_command, run_command
 
 semver_regex = re.compile(
@@ -623,27 +623,41 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
     run_command(commands_str)
 
 
-def define_version_parser(subparsers: SubParsersAction) -> None:
-    parser_version = subparsers.add_parser("version", help="bump version of the project")
-    parser_version.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity")
-    parser_version.add_argument("--no-commit", action="store_true", help="do not commit the changes")
-    parser_version.add_argument("--no-tag", action="store_true", help="do not create a tag")
-    parser_version.add_argument("--no-push", action="store_true", help="do not push the changes")
+def version(
+    path: str = typer.Argument(".", help="path to the file to update"),
+    verbose: int = typer.Option(0, "-v", "--verbose", count=True, help="increase output verbosity"),
+    no_commit: bool = typer.Option(False, "--no-commit", help="do not commit the changes"),
+    no_tag: bool = typer.Option(False, "--no-tag", help="do not create a tag"),
+    no_push: bool = typer.Option(False, "--no-push", help="do not push the changes"),
+    recursive: bool = typer.Option(False, "-r", "--recursive", help="bump all packages in the monorepo"),
+    patch: bool = typer.Option(False, "-p", "--patch", help="patch version"),
+    minor: bool = typer.Option(False, "-m", "--minor", help="minor version"),
+    major: bool = typer.Option(False, "-M", "--major", help="major version"),
+    prepatch: str = typer.Option(None, "-pp", "--prepatch", help="prepatch version"),
+    preminor: str = typer.Option(None, "-pm", "--preminor", help="preminor version"),
+    premajor: str = typer.Option(None, "-pM", "--premajor", help="premajor version"),
+    custom: bool = typer.Option(False, "--custom", help="custom version to bump to"),
+) -> None:
+    # Check for mutually exclusive options
+    exclusive_options = [patch, minor, major, prepatch, preminor, premajor, custom]
+    if sum(bool(opt) for opt in exclusive_options) > 1:
+        typer.echo("Error: Only one version bump option can be specified at a time.")
+        raise typer.Exit(1)
 
-    # add option to bump all packages in the monorepo
-    parser_version.add_argument("-r", "--recursive", action="store_true", help="bump all packages in the monorepo")
-
-    # create a mutually exclusive group
-    version_group = parser_version.add_mutually_exclusive_group()
-
-    # add arguments to the group
-    version_group.add_argument("-p", "--patch", help="patch version", action="store_true")
-    version_group.add_argument("-m", "--minor", help="minor version", action="store_true")
-    version_group.add_argument("-M", "--major", help="major version", action="store_true")
-    version_group.add_argument("-pp", "--prepatch", help="prepatch version", type=str)
-    version_group.add_argument("-pm", "--preminor", help="preminor version", type=str)
-    version_group.add_argument("-pM", "--premajor", help="premajor version", type=str)
-    version_group.add_argument("--custom", help="custom version to bump to", action="store_true")
-    version_group.add_argument("path", help="path to the file to update", nargs="?", default=".")
-
-    parser_version.set_defaults(func=handle_version)
+    args = VersionArgs(
+        version="",  # This will be determined later
+        verbose=verbose,
+        no_commit=no_commit,
+        no_tag=no_tag,
+        no_push=no_push,
+        patch=patch,
+        minor=minor,
+        major=major,
+        prepatch=prepatch or "",
+        preminor=preminor or "",
+        premajor=premajor or "",
+        recursive=recursive,
+        custom="" if not custom else "custom",
+        path=path,
+    )
+    handle_version(args)

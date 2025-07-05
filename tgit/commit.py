@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import git
+import typer
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 from rich import get_console, print
 
 from tgit.settings import settings
-from tgit.types import SubParsersAction
 from tgit.utils import get_commit_command, run_command, type_emojis
 
 console = get_console()
@@ -27,24 +27,12 @@ NAME_STATUS_PARTS = 2
 RENAME_STATUS_PARTS = 3
 
 
-def define_commit_parser(subparsers: SubParsersAction) -> None:
-    commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
-    for commit_type_obj in settings.commit.types:
-        if commit_type_obj.emoji and commit_type_obj.type:
-            type_emojis[commit_type_obj.type] = commit_type_obj.emoji
-            commit_type.append(commit_type_obj.type)
-
-    parser_commit = subparsers.add_parser("commit", help="commit changes following the conventional commit format")
-    parser_commit.add_argument(
-        "message",
-        help="the first word should be the type, if the message is more than two parts, the second part should be the scope",
-        nargs="*",
-    )
-    parser_commit.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity")
-    parser_commit.add_argument("-e", "--emoji", action="store_true", help="use emojis")
-    parser_commit.add_argument("-b", "--breaking", action="store_true", help="breaking change")
-    parser_commit.add_argument("-a", "--ai", action="store_true", help="use ai")
-    parser_commit.set_defaults(func=handle_commit)
+# Initialize commit types from settings
+commit_type_list = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
+for commit_type_obj in settings.commit.types:
+    if commit_type_obj.emoji and commit_type_obj.type:
+        type_emojis[commit_type_obj.type] = commit_type_obj.emoji
+        commit_type_list.append(commit_type_obj.type)
 
 
 @dataclass
@@ -223,6 +211,20 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         use_emoji=settings.commit.emoji,
         is_breaking=resp.is_breaking,
     )
+
+
+def commit(
+    message: list[str] = typer.Argument(
+        None,
+        help="the first word should be the type, if the message is more than two parts, the second part should be the scope",
+    ),
+    verbose: int = typer.Option(0, "-v", "--verbose", count=True, help="increase output verbosity"),
+    emoji: bool = typer.Option(False, "-e", "--emoji", help="use emojis"),
+    breaking: bool = typer.Option(False, "-b", "--breaking", help="breaking change"),
+    ai: bool = typer.Option(False, "-a", "--ai", help="use ai"),
+) -> None:
+    args = CommitArgs(message=message or [], emoji=emoji, breaking=breaking, ai=ai)
+    handle_commit(args)
 
 
 def handle_commit(args: CommitArgs) -> None:

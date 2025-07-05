@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import git
+import typer
 from markdown_it.token import Token
 from rich import print
 from rich.console import Console, ConsoleOptions, RenderResult
@@ -14,7 +15,6 @@ from rich.markdown import Markdown, MarkdownContext, TextElement
 from rich.progress import Progress
 from rich.text import Text
 
-from tgit.types import SubParsersAction
 from tgit.utils import console
 
 logger = logging.getLogger("tgit")
@@ -93,32 +93,36 @@ def get_commit_hash_from_tag(repo: git.Repo, tag: str) -> str | None:
         return None
 
 
-def define_changelog_parser(subparsers: SubParsersAction) -> None:  # type: ignore[type-arg]
-    parser_changelog = subparsers.add_parser("changelog", help="generate changelogs")  # type: ignore
-    parser_changelog.add_argument("-f", "--from", help="From hash/tag", type=str, dest="from_raw")  # type: ignore
-    parser_changelog.add_argument("-t", "--to", help="To hash/tag", type=str, dest="to_raw")  # type: ignore
-    parser_changelog.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity", dest="verbose")  # type: ignore
-    parser_changelog.add_argument(  # type: ignore
-        "-o",
-        "--output",
-        help="output file",
-        type=str,
-        dest="output",
-        nargs="?",  # 表示参数值是可选的
-        const="CHANGELOG.md",
-        default=None,
+def changelog(
+    path: str = typer.Argument(".", help="repository path"),
+    from_raw: str = typer.Option(None, "-f", "--from", help="From hash/tag"),
+    to_raw: str = typer.Option(None, "-t", "--to", help="To hash/tag"),
+    verbose: int = typer.Option(0, "-v", "--verbose", count=True, help="increase output verbosity"),
+    output: str = typer.Option(None, "-o", "--output", help="output file"),
+) -> None:
+    # Handle the output parameter like argparse const behavior
+    if output is None:
+        output_value = None
+    else:
+        output_value = output or "CHANGELOG.md"
+
+    args = ChangelogArgs(
+        path=path,
+        from_raw=from_raw,
+        to_raw=to_raw,
+        verbose=verbose,
+        output=output_value,
     )
-    parser_changelog.add_argument("path", help="repository path", type=str, nargs="?", default=".")
-    parser_changelog.set_defaults(func=handle_changelog)
+    handle_changelog(args)
 
 
 @dataclass
 class ChangelogArgs:
-    from_raw: str
-    to_raw: str
+    from_raw: str | None
+    to_raw: str | None
     verbose: int
     path: str
-    output: str
+    output: str | None
 
 
 def get_simple_hash(repo: git.Repo, git_hash: str, length: int = 7) -> str | None:

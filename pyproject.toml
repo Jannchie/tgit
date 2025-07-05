@@ -11,6 +11,7 @@ dependencies = [
     "jinja2>=3.1.4",
     "questionary>=2.0.1",
     "beautifulsoup4>=4.13.3",
+    "typer>=0.15.1",
 ]
 readme = { content-type = "text/markdown", file = "README.md" }
 requires-python = ">= 3.11"
@@ -41,7 +42,7 @@ allow-direct-references = true
 packages = ["tgit"]
 
 [project.scripts]
-tgit = "tgit:cli.main"
+tgit = "tgit:cli.app"
 
 [tool.ruff]
 line-length = 140
