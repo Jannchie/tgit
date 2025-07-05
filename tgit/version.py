@@ -10,8 +10,8 @@ from difflib import Differ
 from pathlib import Path
 
 import git
-import inquirer  # type: ignore
-from inquirer.questions import Question  # type: ignore
+import questionary
+
 from rich.panel import Panel
 
 from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type
@@ -295,16 +295,11 @@ def handle_version(args: VersionArgs) -> None:
         # 获取目标 tag 名
         target_tag = f"v{next_version}"
         # 询问是否生成 changelog
-        ans = inquirer.prompt(
-            [
-                inquirer.Confirm(
-                    "gen_changelog",
-                    message=f"should generate changelog for {target_tag}?",
-                    default=True,
-                ),
-            ],
-        )
-        if ans and ans.get("gen_changelog"):
+        ans = questionary.confirm(
+            f"should generate changelog for {target_tag}?",
+            default=True,
+        ).ask()
+        if ans:
             # 构造 changelog 参数对象
             from argparse import Namespace
 
@@ -409,21 +404,15 @@ def _handle_interactive_version_selection(prev_version: Version, default_bump: s
 
 
 def _prompt_for_version_choice(choices: list[VersionChoice], default_choice: VersionChoice | None) -> VersionChoice | None:
-    ans = inquirer.prompt(
-        [
-            inquirer.List(
-                "target",
-                message="Select the version to bump to",
-                choices=choices,
-                default=default_choice,
-                carousel=True,
-            ),
-        ],
-    )
-    if not ans:
+    target = questionary.select(
+        "Select the version to bump to",
+        choices=choices,
+        default=default_choice,
+    ).ask()
+
+    if target is None:
         return None
 
-    target = ans["target"]
     if not isinstance(target, VersionChoice):
         msg = "Expected VersionChoice, got different type"
         raise TypeError(msg)
@@ -465,37 +454,25 @@ def bump_version(target: VersionChoice, next_version: Version) -> None:
 
 
 def get_pre_release_identifier() -> str | None:
-    ans = inquirer.prompt(
-        [
-            inquirer.Text(
-                "identifier",
-                message="Enter the pre-release identifier",
-                default="alpha",
-                validate=lambda _, x: bool((match := re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x)) and match.group() == x),
-            ),
-        ],
-    )
-    return ans["identifier"] if ans else None
+    ans = questionary.text(
+        "Enter the pre-release identifier",
+        default="alpha",
+        validate=lambda x: bool((match := re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x)) and match.group() == x),
+    ).ask()
 
 
 def get_custom_version() -> Version | None:
-    def validate_semver(_: Question, x: str) -> bool:
+    def validate_semver(x: str) -> bool:
         res = semver_regex.match(x)
         return bool(res and res.group() == x)
 
-    ans = inquirer.prompt(
-        [
-            inquirer.Text(
-                "version",
-                message="Enter the version",
-                validate=validate_semver,
-            ),
-        ],
-    )
+    ans = questionary.text(
+        "Enter the version",
+        validate=validate_semver,
+    ).ask()
     if not ans:
         return None
-    version = ans["version"]
-    return Version.from_str(version)
+    return Version.from_str(ans)
 
 
 def update_version_files(
@@ -590,8 +567,8 @@ def show_file_diff(old_content: str, new_content: str, filename: str) -> None:
                 padding=(1, 4),
             ),
         )
-        ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
-        if not ok or not ok["continue"]:
+        ok = questionary.confirm("Do you want to continue?", default=True).ask()
+        if not ok:
             sys.exit()
 
 

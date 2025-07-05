@@ -22,6 +22,7 @@ from tgit.version import (
     get_version_from_setup_py,
     get_version_from_version_file,
     get_version_from_version_txt,
+    show_file_diff,
 )
 
 
@@ -577,35 +578,35 @@ class TestNewVersionFunctions:
         mock_prompt.assert_called_once()
         mock_apply.assert_called_once_with(mock_choice, prev_version)
 
-    @patch("tgit.version.inquirer.prompt")
+    @patch("tgit.version.questionary.select")
     def test_prompt_for_version_choice_success(self, mock_prompt):
         """Test _prompt_for_version_choice success case."""
         prev_version = Version(major=1, minor=2, patch=3)
         choice = VersionChoice(prev_version, "patch")
-        mock_prompt.return_value = {"target": choice}
+        mock_prompt.return_value.ask.return_value = choice
 
         result = _prompt_for_version_choice([choice], choice)
 
         assert result == choice
         mock_prompt.assert_called_once()
 
-    @patch("tgit.version.inquirer.prompt")
+    @patch("tgit.version.questionary.select")
     def test_prompt_for_version_choice_cancelled(self, mock_prompt):
         """Test _prompt_for_version_choice when user cancels."""
         prev_version = Version(major=1, minor=2, patch=3)
         choice = VersionChoice(prev_version, "patch")
-        mock_prompt.return_value = None
+        mock_prompt.return_value.ask.return_value = None
 
         result = _prompt_for_version_choice([choice], choice)
 
         assert result is None
 
-    @patch("tgit.version.inquirer.prompt")
+    @patch("tgit.version.questionary.select")
     def test_prompt_for_version_choice_invalid_type(self, mock_prompt):
         """Test _prompt_for_version_choice with invalid type."""
         prev_version = Version(major=1, minor=2, patch=3)
         choice = VersionChoice(prev_version, "patch")
-        mock_prompt.return_value = {"target": "invalid"}
+        mock_prompt.return_value.ask.return_value = "invalid"
 
         with pytest.raises(TypeError, match="Expected VersionChoice"):
             _prompt_for_version_choice([choice], choice)
@@ -713,3 +714,23 @@ class TestNewVersionFunctions:
                     assert call_args[1].major == 0
                     assert call_args[1].minor == 0
                     assert call_args[1].patch == 0
+
+class TestShowFileDiff:
+    @patch("tgit.version.questionary.confirm")
+    def test_show_file_diff_user_confirms(self, mock_confirm):
+        """Test show_file_diff when user confirms."""
+        mock_confirm.return_value.ask.return_value = True
+        old_content = "line1\nline2"
+        new_content = "line1\nline3"
+        show_file_diff(old_content, new_content, "test.txt")
+        mock_confirm.assert_called_once_with("Do you want to continue?", default=True)
+
+    @patch("tgit.version.questionary.confirm")
+    def test_show_file_diff_user_cancels(self, mock_confirm):
+        """Test show_file_diff when user cancels."""
+        mock_confirm.return_value.ask.return_value = False
+        old_content = "line1\nline2"
+        new_content = "line1\nline3"
+        with pytest.raises(SystemExit):
+            show_file_diff(old_content, new_content, "test.txt")
+        mock_confirm.assert_called_once_with("Do you want to continue?", default=True)

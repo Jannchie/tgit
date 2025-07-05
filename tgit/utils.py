@@ -1,7 +1,7 @@
 import subprocess
 import sys
 
-import inquirer
+import questionary
 import rich
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -72,8 +72,8 @@ def run_command(command: str) -> None:
         console.print(panel)
 
     if not settings.get("skip_confirm", False):
-        ok = inquirer.prompt([inquirer.Confirm("continue", message="Do you want to continue?", default=True)])
-        if not ok or not ok["continue"]:
+        ok = questionary.confirm("Do you want to continue?", default=True).ask()
+        if not ok:
             return
         console.print()
 
