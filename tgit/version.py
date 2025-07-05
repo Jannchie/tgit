@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import shutil
@@ -12,6 +13,7 @@ from pathlib import Path
 
 import git
 import questionary
+from questionary import Choice
 from rich.panel import Panel
 
 from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type, handle_changelog
@@ -157,8 +159,6 @@ def get_version_from_files(path: Path) -> Version | None:  # noqa: PLR0911
 def get_version_from_package_json(path: Path) -> Version | None:
     package_json_path = path / "package.json"
     if package_json_path.exists():
-        import json
-
         with package_json_path.open() as f:
             json_data = json.load(f)
             if version := json_data.get("version"):
@@ -402,10 +402,14 @@ def _handle_interactive_version_selection(prev_version: Version, default_bump: s
 
 
 def _prompt_for_version_choice(choices: list[VersionChoice], default_choice: VersionChoice | None) -> VersionChoice | None:
+    q_choices = [Choice(title=str(choice), value=choice) for choice in choices]
+    # Find the corresponding Choice object for default_choice
+    default_val = next((c for c in q_choices if c.value == default_choice), None) if default_choice is not None else None
+
     target = questionary.select(
         "Select the version to bump to",
-        choices=choices,
-        default=default_choice,
+        choices=q_choices,
+        default=default_val,
     ).ask()
 
     if target is None:
