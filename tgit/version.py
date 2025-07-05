@@ -623,7 +623,8 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
     run_command(commands_str)
 
 
-def version(
+def version(  # noqa: PLR0913
+    *,
     path: str = typer.Argument(".", help="path to the file to update"),
     verbose: int = typer.Option(0, "-v", "--verbose", count=True, help="increase output verbosity"),
     no_commit: bool = typer.Option(False, "--no-commit", help="do not commit the changes"),

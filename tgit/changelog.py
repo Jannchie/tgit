@@ -20,6 +20,16 @@ from tgit.utils import console
 logger = logging.getLogger("tgit")
 
 
+@dataclass
+class VersionSegment:
+    """Represents a version segment for changelog generation."""
+
+    from_hash: str
+    to_hash: str
+    from_name: str
+    to_name: str
+
+
 class Heading(TextElement):
     """A heading."""
 
@@ -78,10 +88,10 @@ def get_tag_by_idx(repo: git.Repo, idx: int) -> str | None:
         return None
 
 
-def get_first_commit_hash(repo: git.Repo) -> str | None:
+def get_first_commit_hash(repo: git.Repo) -> str:
     return next(
         (commit.hexsha for commit in repo.iter_commits() if not commit.parents),
-        None,
+        "",
     )
 
 
@@ -101,10 +111,7 @@ def changelog(
     output: str = typer.Option(None, "-o", "--output", help="output file"),
 ) -> None:
     # Handle the output parameter like argparse const behavior
-    if output is None:
-        output_value = None
-    else:
-        output_value = output or "CHANGELOG.md"
+    output_value = None if output is None else output or "CHANGELOG.md"
 
     args = ChangelogArgs(
         path=path,
@@ -152,8 +159,7 @@ def resolve_from_ref(repo: git.Repo, from_raw: str | None) -> str:
         return from_raw
     last_tag = get_latest_git_tag(repo)
     if last_tag is None:
-        first_commit = get_first_commit_hash(repo)
-        return first_commit if first_commit is not None else ""
+        return get_first_commit_hash(repo)
     return last_tag
 
 
@@ -253,7 +259,7 @@ def group_commits_by_type(commits: list[TGITCommit]) -> dict[str, list[TGITCommi
     for commit in commits:
         if commit.breaking:
             commits_by_type["breaking"].append(commit)
-        else:
+        elif commit.type:
             commits_by_type[commit.type].append(commit)
     return commits_by_type
 
@@ -312,7 +318,7 @@ def prepare_changelog_segments(
     repo: git.Repo,
     latest_tag_in_file: str | None = None,
     current_tag: str | None = None,
-) -> list[tuple[str, str, str, str]]:
+) -> list[VersionSegment]:
     tags = sorted(repo.tags, key=lambda t: t.commit.committed_datetime)
     if not tags:
         print("[yellow]No tags found in the repository.[/yellow]")
@@ -328,12 +334,26 @@ def prepare_changelog_segments(
     if latest_tag_in_file and latest_tag_in_file in point_names:
         idx = point_names.index(latest_tag_in_file)
         start_idx = idx + 1
-    segments: list[tuple[str, str, str, str]] = [
-        (points[i - 1], points[i], point_names[i - 1], point_names[i]) for i in reversed(range(start_idx, len(points)))
-    ]
-    if current_tag is not None:
-        segments[0] = (segments[0][0], "HEAD", segments[0][2], current_tag)
-    return segments
+    # Create version segments by iterating through version ranges in reverse order
+    version_segments: list[VersionSegment] = []
+    for i in reversed(range(start_idx, len(points))):
+        segment = VersionSegment(
+            from_hash=points[i - 1],
+            to_hash=points[i],
+            from_name=point_names[i - 1],
+            to_name=point_names[i],
+        )
+        version_segments.append(segment)
+    if current_tag is not None and version_segments:
+        # Update the first segment to use HEAD as the to_hash and current_tag as to_name
+        first_segment = version_segments[0]
+        version_segments[0] = VersionSegment(
+            from_hash=first_segment.from_hash,
+            to_hash="HEAD",
+            from_name=first_segment.from_name,
+            to_name=current_tag,
+        )
+    return version_segments
 
 
 def write_changelog_prepend(filepath: str, new_content: str) -> None:
@@ -397,7 +417,7 @@ def handle_changelog(args: ChangelogArgs, current_tag: str | None = None) -> Non
     print_and_write_changelog(changelogs, args.output, prepend=prepend)
 
 
-def _get_range_segments(repo: git.Repo, from_raw: str | None, to_raw: str | None) -> list:
+def _get_range_segments(repo: git.Repo, from_raw: str | None, to_raw: str | None) -> list[VersionSegment]:
     """获取指定范围的分段"""
     from_ref, to_ref = get_git_commits_range(repo, from_raw or "", to_raw or "")
     segments = prepare_changelog_segments(repo)
@@ -406,22 +426,23 @@ def _get_range_segments(repo: git.Repo, from_raw: str | None, to_raw: str | None
     start, end = 0, len(segments)
     for i, seg in enumerate(segments):
         # 匹配 tag 名或 hash
-        if seg[2] == from_ref or seg[0] == from_ref:
+        if from_ref in (seg.from_name, seg.from_hash):
             start = i
-        if seg[3] == to_ref or seg[1] == to_ref:
+        if to_ref in (seg.to_name, seg.to_hash):
             end = i + 1
 
     return segments[start:end]
 
 
-def _generate_changelogs_from_segments(repo: git.Repo, segments: list) -> str:
+def _generate_changelogs_from_segments(repo: git.Repo, segments: list[VersionSegment]) -> str:
     """从分段列表生成 changelog"""
     changelogs = ""
 
     with Progress() as progress:
         task = progress.add_task("Generating changelog...", total=len(segments))
 
-        for from_hash, to_hash, from_name, to_name in segments:
+        for segment in segments:
+            from_hash, to_hash, from_name, to_name = segment.from_hash, segment.to_hash, segment.from_name, segment.to_name
             # 获取提交信息
             raw_commits = list(repo.iter_commits(f"{from_hash}...{to_hash}"))
             tgit_commits = _process_commits(repo, raw_commits)

@@ -3,6 +3,7 @@ import importlib.resources
 import itertools
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import git
 import typer
@@ -13,6 +14,9 @@ from rich import get_console, print
 from tgit.settings import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
 
+if TYPE_CHECKING:
+    from openai import Client
+
 console = get_console()
 with importlib.resources.path("tgit", "prompts") as prompt_path:
     env = Environment(loader=FileSystemLoader(prompt_path), autoescape=True)
@@ -20,6 +24,15 @@ with importlib.resources.path("tgit", "prompts") as prompt_path:
 commit_types = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "wip"]
 commit_file = "commit.txt"
 commit_prompt_template = env.get_template("commit.txt")
+
+# Define typer arguments/options at module level to avoid B008
+MESSAGE_ARG = typer.Argument(
+    None,
+    help="the first word should be the type, if the message is more than two parts, the second part should be the scope",
+)
+EMOJI_OPT = typer.Option(False, "-e", "--emoji", help="use emojis")
+BREAKING_OPT = typer.Option(False, "-b", "--breaking", help="breaking change")
+AI_OPT = typer.Option(False, "-a", "--ai", help="use ai")
 
 MAX_DIFF_LINES = 1000
 NUMSTAT_PARTS = 3
@@ -41,6 +54,13 @@ class CommitArgs:
     emoji: bool
     breaking: bool
     ai: bool
+
+
+@dataclass
+class TemplateParams:
+    types: list[str]
+    branch: str
+    specified_type: str | None = None
 
 
 class CommitData(BaseModel):
@@ -130,7 +150,7 @@ def _check_openai_availability() -> None:
     _import_openai()  # 这会在包不可用时抛出异常
 
 
-def _create_openai_client():  # type: ignore[misc]  # noqa: ANN202
+def _create_openai_client() -> "Client":  # type: ignore[misc]
     """创建并配置 OpenAI 客户端"""
     openai = _import_openai()
     client = openai.Client()
@@ -146,16 +166,18 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
     _check_openai_availability()
     client = _create_openai_client()
 
-    template_params: dict[str, str | list[str]] = {"types": commit_types, "branch": current_branch}
-    if specified_type:
-        template_params["specified_type"] = specified_type
+    template_params = TemplateParams(
+        types=commit_types,
+        branch=current_branch,
+        specified_type=specified_type,
+    )
 
     with console.status("[bold green]Generating commit message...[/bold green]"):
         chat_completion = client.responses.parse(
             input=[
                 {
                     "role": "system",
-                    "content": commit_prompt_template.render(**template_params),
+                    "content": commit_prompt_template.render(**template_params.__dict__),
                 },
                 {"role": "user", "content": diff},
             ],
@@ -214,14 +236,11 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
 
 
 def commit(
-    message: list[str] = typer.Argument(
-        None,
-        help="the first word should be the type, if the message is more than two parts, the second part should be the scope",
-    ),
-    verbose: int = typer.Option(0, "-v", "--verbose", count=True, help="increase output verbosity"),
-    emoji: bool = typer.Option(False, "-e", "--emoji", help="use emojis"),
-    breaking: bool = typer.Option(False, "-b", "--breaking", help="breaking change"),
-    ai: bool = typer.Option(False, "-a", "--ai", help="use ai"),
+    *,
+    message: list[str] = MESSAGE_ARG,
+    emoji: bool = EMOJI_OPT,
+    breaking: bool = BREAKING_OPT,
+    ai: bool = AI_OPT,
 ) -> None:
     args = CommitArgs(message=message or [], emoji=emoji, breaking=breaking, ai=ai)
     handle_commit(args)

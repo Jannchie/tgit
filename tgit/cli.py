@@ -29,16 +29,17 @@ app.command("add", help="same as git add")(add)
 app.command("config", help="edit settings")(config)
 
 
-def version_callback(value: bool) -> None:
+def version_callback(*, value: bool) -> None:
     if value:
         version_info = importlib.metadata.version("tgit")
         console.print(f"TGIT - ver.{version_info}", highlight=False)
-        raise typer.Exit()
+        raise typer.Exit
 
 
 @app.callback()
 def main(
-    version_flag: bool = typer.Option(
+    *,
+    _version: bool = typer.Option(
         False,
         "--version",
         help="Show version",
