@@ -310,43 +310,6 @@ description = "Test package"
     @patch("tgit.version.update_version_files")
     @patch("tgit.version.execute_git_commands")
     @patch("tgit.version.questionary.confirm")
-    def test_handle_version_with_changelog(self, mock_prompt, mock_execute_git, mock_update_files, mock_get_current, mock_get_next):
-        """Test handle_version with changelog generation."""
-        # Setup mocks
-        mock_get_current.return_value = Version(major=1, minor=0, patch=0)
-        mock_get_next.return_value = Version(major=1, minor=1, patch=0)
-        mock_prompt.return_value.ask.return_value = True
-
-        # Create args
-        args = VersionArgs(
-            version="",
-            verbose=0,
-            no_commit=False,
-            no_tag=False,
-            no_push=False,
-            patch=False,
-            minor=False,
-            major=False,
-            prepatch="",
-            preminor="",
-            premajor="",
-            recursive=False,
-            custom="",
-            path=".",
-        )
-
-        # Mock changelog handling
-        with patch("tgit.changelog.handle_changelog") as mock_handle_changelog:
-            handle_version(args)
-
-            # Verify changelog was generated
-            mock_handle_changelog.assert_called_once()
-
-    @patch("tgit.version.get_next_version")
-    @patch("tgit.version.get_current_version")
-    @patch("tgit.version.update_version_files")
-    @patch("tgit.version.execute_git_commands")
-    @patch("tgit.version.questionary.confirm")
     def test_handle_version_without_changelog(self, mock_prompt, mock_execute_git, mock_update_files, mock_get_current, mock_get_next):
         """Test handle_version without changelog generation."""
         # Setup mocks

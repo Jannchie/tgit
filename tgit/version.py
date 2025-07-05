@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+from argparse import Namespace
 from copy import deepcopy
 from dataclasses import dataclass
 from difflib import Differ
@@ -11,10 +12,9 @@ from pathlib import Path
 
 import git
 import questionary
-
 from rich.panel import Panel
 
-from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type
+from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type, handle_changelog
 from tgit.settings import settings
 from tgit.types import SubParsersAction
 from tgit.utils import console, get_commit_command, run_command
@@ -301,7 +301,6 @@ def handle_version(args: VersionArgs) -> None:
         ).ask()
         if ans:
             # 构造 changelog 参数对象
-            from argparse import Namespace
 
             changelog_args = Namespace(
                 path=path,
@@ -310,7 +309,6 @@ def handle_version(args: VersionArgs) -> None:
                 output="CHANGELOG.md",
                 verbose=verbose,
             )
-            from tgit.changelog import handle_changelog
 
             # Type ignore needed for argparse Namespace to ChangelogArgs conversion
             handle_changelog(changelog_args, current_tag=target_tag)  # type: ignore[arg-type]
@@ -528,7 +526,11 @@ def update_file_in_root(next_version_str: str, verbose: int, root_path: Path, *,
     update_file(str(root_path / "setup.py"), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=show_diff)
     update_file(str(root_path / "Cargo.toml"), r'(?m)^version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
     update_file(
-        str(root_path / "build.gradle.kts"), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff,
+        str(root_path / "build.gradle.kts"),
+        r'version\s*=\s*".*?"',
+        f'version = "{next_version_str}"',
+        verbose,
+        show_diff=show_diff,
     )
     update_file(str(root_path / "VERSION"), None, next_version_str, verbose, show_diff=show_diff)
     update_file(str(root_path / "VERSION.txt"), None, next_version_str, verbose, show_diff=show_diff)
