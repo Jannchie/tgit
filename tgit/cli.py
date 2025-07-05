@@ -34,7 +34,7 @@ def main() -> None:
 
     def import_openai() -> None:
         with contextlib.suppress(Exception):
-            import openai  # noqa: F401
+            import openai  # noqa: F401, PLC0415
 
     threading.Thread(target=import_openai).start()
 

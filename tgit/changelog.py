@@ -169,11 +169,16 @@ class TGITCommit:
     def __init__(self, repo: git.Repo, commit: git.Commit, message_dict: dict[str, str]) -> None:
         commit_date = commit.committed_datetime
 
-        co_author_raws = [line for line in commit.message.split("\n") if line.lower().startswith("co-authored-by:")]  # type: ignore
+        message = commit.message
+        if isinstance(message, bytes):
+            message = message.decode()
+        elif not isinstance(message, str):
+            message = str(message)
+        co_author_raws = [line for line in message.split("\n") if line.lower().startswith("co-authored-by:")]
         co_author_pattern = re.compile(r"Co-authored-by: (?P<name>.+?) <(?P<email>.+?)>", re.IGNORECASE)
-        co_authors = [co_author_pattern.match(co_author).groupdict() for co_author in co_author_raws]  # type: ignore
-        authors = [{"name": commit.author.name, "email": commit.author.email}, *co_authors]  # type: ignore
-        self.authors: list[Author] = [Author(**kwargs) for kwargs in authors]  # type: ignore
+        co_authors = [match.groupdict() for co_author in co_author_raws if (match := co_author_pattern.match(co_author))]
+        authors = [{"name": commit.author.name, "email": commit.author.email}, *co_authors]
+        self.authors: list[Author] = [Author(**kwargs) for kwargs in authors]
         self.date = commit_date
         self.emoji = message_dict.get("emoji")
         self.type = message_dict.get("type")
@@ -231,7 +236,11 @@ def get_commits(repo: git.Repo, from_hash: str, to_hash: str) -> list[TGITCommit
     raw_commits = list(repo.iter_commits(f"{from_hash}...{to_hash}"))
     tgit_commits = []
     for commit in raw_commits:
-        message = commit.message.decode() if isinstance(commit.message, bytes) else commit.message
+        message = commit.message
+        if isinstance(message, bytes):
+            message = message.decode()
+        elif not isinstance(message, str):
+            message = str(message)
         if m := commit_pattern.match(message):
             message_dict = m.groupdict()
             tgit_commits.append(TGITCommit(repo, commit, message_dict))
@@ -290,8 +299,8 @@ def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: s
 
 
 def extract_latest_tag_from_changelog(filepath: str) -> str | None:
-    filepath = Path(filepath)
-    with contextlib.suppress(FileNotFoundError), filepath.open(encoding="utf-8") as f:
+    filepath_obj = Path(filepath)
+    with contextlib.suppress(FileNotFoundError), filepath_obj.open(encoding="utf-8") as f:
         for line in f:
             if line.startswith("## "):
                 return line.strip().removeprefix("## ").strip()
@@ -393,7 +402,7 @@ def handle_changelog(args: ChangelogArgs, current_tag: str | None = None) -> Non
 
 def _get_range_segments(repo: git.Repo, from_raw: str | None, to_raw: str | None) -> list:
     """获取指定范围的分段"""
-    from_ref, to_ref = get_git_commits_range(repo, from_raw, to_raw)
+    from_ref, to_ref = get_git_commits_range(repo, from_raw or "", to_raw or "")
     segments = prepare_changelog_segments(repo)
 
     # 找到 from_ref 和 to_ref 在分段中的索引
