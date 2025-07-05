@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from rich import get_console, print
 
 from tgit.settings import settings
-from tgit.types import Settings, SubParsersAction
+from tgit.types import SubParsersAction
 from tgit.utils import get_commit_command, run_command, type_emojis
 
 console = get_console()
@@ -29,14 +29,10 @@ RENAME_STATUS_PARTS = 3
 
 def define_commit_parser(subparsers: SubParsersAction) -> None:
     commit_type = ["feat", "fix", "chore", "docs", "style", "refactor", "perf"]
-    commit_settings: Settings = settings.get("commit", {})
-    types_settings: list[Settings] = commit_settings.get("types", [])
-    for data in types_settings:
-        emoji = data.get("emoji")
-        type_name = data.get("type")
-        if emoji and type_name:
-            type_emojis[type_name] = emoji
-            commit_type.append(type_name)
+    for commit_type_obj in settings.commit.types:
+        if commit_type_obj.emoji and commit_type_obj.type:
+            type_emojis[commit_type_obj.type] = commit_type_obj.emoji
+            commit_type.append(commit_type_obj.type)
 
     parser_commit = subparsers.add_parser("commit", help="commit changes following the conventional commit format")
     parser_commit.add_argument(
@@ -150,12 +146,10 @@ def _create_openai_client():  # type: ignore[misc]  # noqa: ANN202
     """创建并配置 OpenAI 客户端"""
     openai = _import_openai()
     client = openai.Client()
-    api_url = settings.get("apiUrl")
-    if api_url and isinstance(api_url, str):
-        client.base_url = api_url
-    api_key = settings.get("apiKey")
-    if api_key and isinstance(api_key, str):
-        client.api_key = api_key
+    if settings.api_url:
+        client.base_url = settings.api_url
+    if settings.api_key:
+        client.api_key = settings.api_key
     return client
 
 
@@ -177,7 +171,7 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
                 },
                 {"role": "user", "content": diff},
             ],
-            model=str(settings.get("model", "gpt-4.1")),
+            model=settings.model or "gpt-4.1",
             max_output_tokens=50,
             text_format=CommitData,
         )
@@ -226,7 +220,7 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         commit_type,
         resp.scope,
         resp.msg,
-        use_emoji=bool(settings.get("commit", {}).get("emoji", False)),
+        use_emoji=settings.commit.emoji,
         is_breaking=resp.is_breaking,
     )
 
@@ -268,7 +262,7 @@ def handle_commit(args: CommitArgs) -> None:
             return
         use_emoji = args.emoji
         if use_emoji is False:
-            use_emoji = bool(settings.get("commit", {}).get("emoji", False))
+            use_emoji = settings.commit.emoji
         is_breaking = args.breaking
         command = get_commit_command(commit_type, commit_scope, commit_msg, use_emoji=use_emoji, is_breaking=is_breaking)
 

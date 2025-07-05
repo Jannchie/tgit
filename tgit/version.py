@@ -14,7 +14,6 @@ from pathlib import Path
 import git
 import questionary
 from questionary import Choice
-from rich.panel import Panel
 
 from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type, handle_changelog
 from tgit.settings import settings
@@ -316,7 +315,7 @@ def handle_version(args: VersionArgs) -> None:
         execute_git_commands(args, next_version, verbose)
 
 
-def get_current_version(path: str, verbose: int) -> Version | None:
+def get_current_version(path: str, verbose: int) -> Version:
     if verbose > 0:
         console.print("Bumping version...")
         console.print("Getting current version...")
@@ -564,15 +563,8 @@ def show_file_diff(old_content: str, new_content: str, filename: str) -> None:
     diffs = []
     format_diff_lines(diff, print_lines, diffs)
     if diffs:
-        console.print(
-            Panel.fit(
-                "\n".join(diffs),
-                border_style="cyan",
-                title=f"Diff for {filename}",
-                title_align="left",
-                padding=(1, 4),
-            ),
-        )
+        console.print(f"[cyan]Diff for {filename}:[/cyan]")
+        console.print("\n".join(diffs))
         ok = questionary.confirm("Do you want to continue?", default=True).ask()
         if not ok:
             sys.exit()
@@ -613,7 +605,7 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
             console.print("Skipping commit")
     else:
         commands.append("git add .")
-        use_emoji = bool(settings.get("commit", {}).get("emoji", False))
+        use_emoji = settings.commit.emoji
         commands.append(get_commit_command("version", None, f"{git_tag}", use_emoji=use_emoji))
 
     if args.no_tag:

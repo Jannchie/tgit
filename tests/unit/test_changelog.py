@@ -1,9 +1,8 @@
 from datetime import UTC, datetime
 from unittest.mock import Mock, patch
+from tgit.changelog import get_commits, get_git_commits_range
 
 from tgit.changelog import (
-    get_commits,
-    get_git_commits_range,
     group_commits_by_type,
 )
 
@@ -135,9 +134,6 @@ class TestChangelog:
         mock_commit.breaking = False
 
         mock_get_commits.return_value = [mock_commit]
-
-        # Import and test
-        from tgit.changelog import get_commits, get_git_commits_range
 
         mock_repo = Mock()
         from_ref, to_ref = get_git_commits_range(mock_repo, "", "")

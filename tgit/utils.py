@@ -3,7 +3,6 @@ import sys
 
 import questionary
 import rich
-from rich.panel import Panel
 from rich.syntax import Syntax
 
 from tgit.settings import settings
@@ -58,20 +57,12 @@ def simple_run_command(command: str) -> None:
 
 
 def run_command(command: str) -> None:
-    if settings.get("show_command", True):
-        panel = Panel.fit(
-            Syntax(command, "bash", line_numbers=False, theme="github-dark", background_color="default", word_wrap=True),
-            title="The following command will be executed:",
-            border_style="cyan",
-            highlight=True,
-            padding=(1, 4),
-            title_align="left",
-            subtitle_align="right",
-        )
+    if settings.show_command:
         print()  # noqa: T201
-        console.print(panel)
+        console.print("[cyan]The following command will be executed:[/cyan]")
+        console.print(Syntax(command, "bash", line_numbers=False, theme="github-dark", background_color="default", word_wrap=True))
 
-    if not settings.get("skip_confirm", False):
+    if not settings.skip_confirm:
         ok = questionary.confirm("Do you want to continue?", default=True).ask()
         if not ok:
             return

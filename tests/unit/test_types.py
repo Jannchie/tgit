@@ -16,9 +16,9 @@ class TestSubParsersAction:
         """Test SubParsersAction with real argparse usage"""
         parser = argparse.ArgumentParser()
         subparsers = parser.add_subparsers()
-        
+
         # This should work with our type alias
-        assert isinstance(subparsers, argparse._SubParsersAction)
+        assert isinstance(subparsers, argparse._SubParsersAction)  # noqa: SLF001
 
 
 class TestSettings:
@@ -26,7 +26,7 @@ class TestSettings:
         """Test Settings type alias"""
         # Settings should be equivalent to dict[str, Any]
         test_settings: Settings = {"key": "value", "number": 42, "bool": True}
-        
+
         assert isinstance(test_settings, dict)
         assert test_settings["key"] == "value"
         assert test_settings["number"] == 42
@@ -42,9 +42,9 @@ class TestSettings:
         """Test nested Settings"""
         nested_settings: Settings = {
             "api": {"key": "secret", "url": "https://api.example.com"},
-            "commit": {"emoji": True, "types": ["feat", "fix"]}
+            "commit": {"emoji": True, "types": ["feat", "fix"]},
         }
-        
+
         assert isinstance(nested_settings, dict)
         assert nested_settings["api"]["key"] == "secret"
         assert nested_settings["commit"]["emoji"] is True
@@ -59,9 +59,9 @@ class TestSettings:
             "boolean": True,
             "list": [1, 2, 3],
             "dict": {"nested": "value"},
-            "none": None
+            "none": None,
         }
-        
+
         assert isinstance(mixed_settings, dict)
         assert mixed_settings["string"] == "value"
         assert mixed_settings["integer"] == 42

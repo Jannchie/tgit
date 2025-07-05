@@ -8,10 +8,9 @@ from pathlib import Path
 
 import git
 from markdown_it.token import Token
-from rich import box, print
+from rich import print
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.markdown import Markdown, MarkdownContext, TextElement
-from rich.panel import Panel
 from rich.progress import Progress
 from rich.text import Text
 
@@ -51,12 +50,10 @@ class Heading(TextElement):
         prefixed_text.justify = None
 
         if self.tag == "h1":
-            # Draw a border around h1s
-            yield Panel(
-                prefixed_text,
-                box=box.HEAVY,
-                style="markdown.h1.border",
-            )
+            # Simple text output for h1s
+            yield Text("")
+            yield prefixed_text
+            yield Text("")
         else:
             # Styled text for h2 and beyond
             if self.tag == "h2":
@@ -357,17 +354,13 @@ def print_and_write_changelog(
         print("[yellow]No changes found, nothing to output.[/yellow]")
         return
     print()
+    console.print("[cyan]Changelog:[/cyan]")
+    if output_path:
+        console.print(f"[dim]It is saved to {output_path}[/dim]")
+    print()
     # rich.Markdown 默认标题居中，需用 console.print 并设置参数 style 和 width
     md = Markdown(changelog.strip("\n"), justify="left")
-    panel = Panel(
-        md,
-        title="Changelog",
-        border_style="cyan",
-        title_align="left",
-        subtitle=f"It is saved to {output_path}" if output_path else None,
-        width=80,
-    )
-    console.print(panel)
+    console.print(md)
     if output_path:
         if prepend:
             write_changelog_prepend(output_path, changelog)

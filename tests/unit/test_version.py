@@ -346,7 +346,7 @@ class TestVersionBumping:
         prev_version = Version(major=0, minor=1, patch=0)
         commits_by_type = {"breaking": [Mock()]}
 
-        bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)
+        bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)  # type: ignore
 
         assert bump == "minor"
 
@@ -355,7 +355,7 @@ class TestVersionBumping:
         prev_version = Version(major=1, minor=0, patch=0)
         commits_by_type = {"breaking": [Mock()]}
 
-        bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)
+        bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)  # type: ignore
 
         assert bump == "major"
 
@@ -364,7 +364,7 @@ class TestVersionBumping:
         prev_version = Version(major=1, minor=0, patch=0)
         commits_by_type = {"feat": [Mock()]}
 
-        bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)
+        bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)  # type: ignore
 
         assert bump == "minor"
 
@@ -373,7 +373,7 @@ class TestVersionBumping:
         prev_version = Version(major=1, minor=0, patch=0)
         commits_by_type = {"fix": [Mock()]}
 
-        bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)
+        bump = get_default_bump_by_commits_dict(commits_by_type, prev_version)  # type: ignore
 
         assert bump == "patch"
 
@@ -699,21 +699,24 @@ class TestNewVersionFunctions:
         args = Mock()
         args.path = "/fake/path"
 
-        with patch("tgit.version._get_default_bump_from_commits") as mock_get_default_bump:
-            with patch("tgit.version._has_explicit_version_args") as mock_has_explicit:
-                with patch("tgit.version._handle_explicit_version_args") as mock_handle_explicit:
-                    mock_has_explicit.return_value = True
-                    mock_handle_explicit.return_value = Version(major=0, minor=0, patch=1)
+        with (
+            patch("tgit.version._get_default_bump_from_commits"),
+            patch("tgit.version._has_explicit_version_args") as mock_has_explicit,
+            patch("tgit.version._handle_explicit_version_args") as mock_handle_explicit,
+        ):
+            mock_has_explicit.return_value = True
+            mock_handle_explicit.return_value = Version(major=0, minor=0, patch=1)
 
-                    result = get_next_version(args, None, 0)
+            result = get_next_version(args, None, 0)
 
-                    assert result is not None
-                    # Should create default Version(0, 0, 0) when prev_version is None
-                    mock_handle_explicit.assert_called_once()
-                    call_args = mock_handle_explicit.call_args[0]
-                    assert call_args[1].major == 0
-                    assert call_args[1].minor == 0
-                    assert call_args[1].patch == 0
+            assert result is not None
+            # Should create default Version(0, 0, 0) when prev_version is None
+            mock_handle_explicit.assert_called_once()
+            call_args = mock_handle_explicit.call_args[0]
+            assert call_args[1].major == 0
+            assert call_args[1].minor == 0
+            assert call_args[1].patch == 0
+
 
 class TestShowFileDiff:
     @patch("tgit.version.questionary.confirm")
