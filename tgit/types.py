@@ -23,7 +23,7 @@ class CommitType:
 @dataclass
 class CommitSettings:
     emoji: bool = False
-    types: list[CommitType] = field(default_factory=list)
+    types: list[CommitType] = field(default_factory=list[CommitType])
 
 
 @dataclass

@@ -232,7 +232,7 @@ def get_version_from_cargo_toml(directory_path: Path) -> Version | None:
         return None
 
     # 5. Safely access the version string
-    version_str = package_data.get("version")
+    version_str = package_data.get("version")  # type: ignore
     if not isinstance(version_str, str) or not version_str:  # Check if it's a non-empty string
         console.print(f"Missing, empty, or invalid 'version' string in [package] table of {cargo_toml_path}")
         return None
@@ -458,7 +458,7 @@ def get_pre_release_identifier() -> str | None:
     return questionary.text(
         "Enter the pre-release identifier",
         default="alpha",
-        validate=lambda x: bool((match := re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x)) and match.group() == x),
+        validate=lambda x: bool((match := re.match(r"[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*", x)) and match.group() == x),  # type: ignore
     ).ask()
 
 
@@ -557,10 +557,10 @@ def update_file(filename: str, search_pattern: str | None, replace_text: str, ve
 def show_file_diff(old_content: str, new_content: str, filename: str) -> None:
     old_lines = old_content.splitlines()
     new_lines = new_content.splitlines()
-    diff = list(Differ().compare(old_lines, new_lines))
+    diff = list[str](Differ().compare(old_lines, new_lines))
     print_lines = extract_context_lines(diff)
 
-    diffs = []
+    diffs: list[str] = []
     format_diff_lines(diff, print_lines, diffs)
     if diffs:
         console.print()
@@ -572,7 +572,7 @@ def show_file_diff(old_content: str, new_content: str, filename: str) -> None:
 
 
 def extract_context_lines(diff: list[str]) -> dict[int, str]:
-    print_lines = {}
+    print_lines: dict[int, str] = {}
     for i, line in enumerate(diff):
         if line.startswith(("+", "-")):
             for j in range(i - 3, i + 3):
@@ -600,7 +600,7 @@ def format_diff_lines(diff: list[str], print_lines: dict[int, str], diffs: list[
 def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int) -> None:
     git_tag = f"v{next_version}"
 
-    commands = []
+    commands: list[str] = []
     if args.no_commit:
         if verbose > 0:
             console.print("Skipping commit")
@@ -641,7 +641,7 @@ def version(  # noqa: PLR0913
     custom: bool = typer.Option(False, "--custom", help="custom version to bump to"),
 ) -> None:
     # Check for mutually exclusive options
-    exclusive_options = [patch, minor, major, prepatch, preminor, premajor, custom]
+    exclusive_options: list[bool | str] = [patch, minor, major, prepatch, preminor, premajor, custom]
     if sum(bool(opt) for opt in exclusive_options) > 1:
         typer.echo("Error: Only one version bump option can be specified at a time.")
         raise typer.Exit(1)

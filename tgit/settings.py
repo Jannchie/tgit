@@ -44,7 +44,7 @@ def set_global_settings(key: str, value: Any) -> None:  # noqa: ANN401
     global_settings_path = Path.home() / ".tgit" / "settings.json"
     global_settings_path.parent.mkdir(parents=True, exist_ok=True)
 
-    file_settings = json.loads(global_settings_path.read_text()) or {} if global_settings_path.exists() else {}
+    file_settings = json.loads(global_settings_path.read_text()) or {} if global_settings_path.exists() else {} # type: ignore
 
     file_settings[key] = value
     global_settings_path.write_text(json.dumps(file_settings, indent=2))
@@ -68,7 +68,7 @@ def _merge_settings(base: dict[str, Any], override: dict[str, Any]) -> dict[str,
     result = base.copy()
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _merge_settings(result[key], value)
+            result[key] = _merge_settings(result[key], value) # type: ignore
         else:
             result[key] = value
     return result
