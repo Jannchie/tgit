@@ -3,7 +3,7 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
@@ -11,7 +11,7 @@
         },
         {
             "name": "Python: Run Tests",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/venv/bin/pytest",
             "args": [
@@ -24,7 +24,7 @@
         },
         {
             "name": "Python: Run Unit Tests",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/venv/bin/pytest",
             "args": [
@@ -37,7 +37,7 @@
         },
         {
             "name": "Python: Run Integration Tests",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/venv/bin/pytest",
             "args": [
@@ -50,7 +50,7 @@
         },
         {
             "name": "TGIT: Version Command",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/tgit/cli.py",
             "args": [
