@@ -33,13 +33,31 @@ uv pip install -e .
 
 ### Testing
 
-No specific test framework is configured. Check if tests exist before adding new functionality.
+```bash
+# Run all tests with coverage
+./scripts/test.sh
+
+# Run only unit tests
+./scripts/test.sh --unit
+
+# Run only integration tests  
+./scripts/test.sh --integration
+
+# Run tests with verbose output
+./scripts/test.sh --verbose
+
+# Run tests with custom coverage threshold
+./scripts/test.sh --coverage 85
+
+# Run pytest directly (manual coverage control)
+pytest tests/ --cov=tgit --cov-report=term-missing --cov-report=html:htmlcov
+```
 
 ## Code Architecture
 
 ### Entry Point and CLI Structure
 
-- `cli.py` - Main CLI entry point using argparse with subcommands
+- `cli.py` - Main CLI entry point using Typer with subcommands
 - Each subcommand has its own module (commit.py, changelog.py, version.py, etc.)
 - Rich library used for enhanced terminal output and progress bars
 
@@ -100,6 +118,14 @@ No specific test framework is configured. Check if tests exist before adding new
 
 ### Dependencies
 
-- Core: rich, pyyaml, questionary, gitpython, openai, jinja2, beautifulsoup4
+- Core: rich, pyyaml, questionary, gitpython, openai, jinja2, beautifulsoup4, typer
 - Build: hatchling via uv
 - Code quality: ruff (configured for line length 140, extensive rule set)
+- Testing: pytest, pytest-cov (via dev dependencies)
+
+## Testing Notes
+
+- Test structure: `tests/unit/` for unit tests, `tests/integration/` for integration tests
+- Coverage configured with pytest-cov; HTML reports generated in `htmlcov/`
+- Use `./scripts/test.sh` for comprehensive testing with coverage
+- 不要使用 ini_options 来自动 cov，而是需要手动传入参数进行覆盖率测试
