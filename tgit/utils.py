@@ -58,11 +58,8 @@ def simple_run_command(command: str) -> None:
 
 def run_command(command: str) -> None:
     if settings.show_command:
-        console.print()
-        console.print("[cyan]The following command will be executed:[/cyan]")
-        console.print()
-        console.print(Syntax(command, "bash", theme="github-dark", word_wrap=True))
-        console.print()
+        console.print("\n[cyan]The following command will be executed:[/cyan]")
+        console.print(Syntax(f"\n{command}\n", "bash", line_numbers=False, theme="github-dark", background_color="default", word_wrap=True))
     if not settings.skip_confirm:
         ok = questionary.confirm("Do you want to continue?", default=True).ask()
         if not ok:
