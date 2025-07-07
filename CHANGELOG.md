@@ -1,3 +1,11 @@
+## v0.21.1
+
+[v0.21.0...v0.21.1](https://github.com/Jannchie/tgit/compare/v0.21.0...v0.21.1)
+
+### :lipstick: Styles
+
+- **utils**: improve console output formatting - By [Jannchie](mailto:jannchie@gmail.com) in [465f4b4](https://github.com/Jannchie/tgit/commit/465f4b4)
+
 ## v0.21.0
 
 [v0.20.0...v0.21.0](https://github.com/Jannchie/tgit/compare/v0.20.0...v0.21.0)
