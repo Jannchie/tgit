@@ -7,8 +7,7 @@ import click
 from tgit.add import add
 from tgit.changelog import changelog
 from tgit.commit import commit
-from tgit.config import config
-from tgit.settings_command import settings
+from tgit.settings import settings_command
 from tgit.utils import console
 from tgit.version import version
 
@@ -47,8 +46,7 @@ app.add_command(commit)
 app.add_command(version)
 app.add_command(changelog)
 app.add_command(add)
-app.add_command(config)
-app.add_command(settings)
+app.add_command(settings_command, name="settings")
 
 
 if __name__ == "__main__":

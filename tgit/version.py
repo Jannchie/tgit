@@ -17,7 +17,7 @@ import questionary
 from questionary import Choice
 
 from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type, handle_changelog
-from tgit.settings import settings
+from tgit.shared import settings
 from tgit.utils import console, get_commit_command, run_command
 
 semver_regex = re.compile(
@@ -621,7 +621,7 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
     else:
         commands.extend(("git push", "git push --tag"))
     commands_str = "\n".join(commands)
-    run_command(commands_str)
+    run_command(settings, commands_str)
 
 
 @click.command()

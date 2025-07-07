@@ -8,7 +8,7 @@ import questionary
 from questionary import Choice
 from rich import print
 
-from tgit.settings import load_global_settings, load_workspace_settings
+from tgit.utils import load_global_settings, load_workspace_settings
 
 
 def interactive_settings() -> None:
@@ -303,6 +303,7 @@ def _reset_settings() -> None:
         default=False,
     ).ask()
     if not confirm:
+        print("[yellow]Reset cancelled.[/yellow]")
         return
 
     if reset_type in ["global", "both"]:
@@ -310,9 +311,13 @@ def _reset_settings() -> None:
         if global_settings_path.exists():
             global_settings_path.unlink()
             print("[green]Global settings reset successfully![/green]")
+        else:
+            print("[yellow]Global settings file does not exist.[/yellow]")
 
     if reset_type in ["workspace", "both"]:
         workspace_settings_path = Path.cwd() / ".tgit" / "settings.json"
         if workspace_settings_path.exists():
             workspace_settings_path.unlink()
             print("[green]Workspace settings reset successfully![/green]")
+        else:
+            print("[yellow]Workspace settings file does not exist.[/yellow]")

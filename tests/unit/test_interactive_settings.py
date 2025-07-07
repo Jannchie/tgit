@@ -149,6 +149,7 @@ class TestConfigureGlobalSettings:
         
         mock_text.assert_called_once()
 
+    @patch("pathlib.Path.mkdir")
     @patch("pathlib.Path.write_text")
     @patch("tgit.interactive_settings.json.dumps")
     @patch("tgit.interactive_settings.json.loads")
@@ -156,7 +157,9 @@ class TestConfigureGlobalSettings:
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
     @patch("tgit.interactive_settings.load_global_settings")
-    def test_configure_global_settings_complete(self, mock_load_global_settings, mock_text, mock_confirm, mock_home, mock_loads, mock_dumps, mock_write_text):
+    def test_configure_global_settings_complete(
+        self, mock_load_global_settings, mock_text, mock_confirm, mock_home, mock_loads, mock_dumps, mock_write_text, mock_mkdir
+    ):
         """Test _configure_global_settings complete flow."""
         mock_loads.return_value = {}
         mock_home.return_value = Path("/home/user")
@@ -180,6 +183,7 @@ class TestConfigureGlobalSettings:
         # Verify all inputs were called
         assert mock_text.call_count == 3
         assert mock_confirm.call_count == 4
+        mock_mkdir.assert_called_once()
         mock_write_text.assert_called_once()
 
 
@@ -224,7 +228,7 @@ class TestResetSettings:
         mock_home.return_value = Path("/home/user")
         
         with (
-            patch("pathlib.Path.exists", return_value=True) as mock_exists,
+            patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.unlink") as mock_unlink,
         ):
             _reset_settings()
@@ -244,7 +248,7 @@ class TestResetSettings:
         mock_home.return_value = Path("/home/user")
         
         with (
-            patch("pathlib.Path.exists", return_value=True) as mock_exists,
+            patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.unlink") as mock_unlink,
         ):
             _reset_settings()
@@ -263,7 +267,7 @@ class TestResetSettings:
         mock_confirm.return_value.ask.return_value = True
         mock_home.return_value = Path("/home/user")
         
-        with patch("pathlib.Path.exists", return_value=False) as mock_exists, \
+        with patch("pathlib.Path.exists", return_value=False), \
              patch("pathlib.Path.unlink") as mock_unlink:
             _reset_settings()
             
@@ -279,7 +283,7 @@ class TestResetSettings:
         mock_select.return_value.ask.return_value = "workspace"
         mock_confirm.return_value.ask.return_value = True
         
-        with patch("pathlib.Path.exists", return_value=False) as mock_exists, \
+        with patch("pathlib.Path.exists", return_value=False), \
              patch("pathlib.Path.unlink") as mock_unlink:
             _reset_settings()
             
@@ -298,7 +302,7 @@ class TestResetSettings:
         mock_home.return_value = Path("/home/user")
         
         with (
-            patch("pathlib.Path.exists", return_value=True) as mock_exists,
+            patch("pathlib.Path.exists", return_value=True),
             patch("pathlib.Path.unlink") as mock_unlink,
         ):
             _reset_settings()

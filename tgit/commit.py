@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 from rich import get_console, print
 
-from tgit.settings import settings
+from tgit.shared import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
 
 if TYPE_CHECKING:
@@ -294,4 +294,4 @@ def handle_commit(args: CommitArgs) -> None:
         is_breaking = args.breaking
         command = get_commit_command(commit_type, commit_scope, commit_msg, use_emoji=use_emoji, is_breaking=is_breaking)
 
-    run_command(command)
+    run_command(settings, command)
