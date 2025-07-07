@@ -1,3 +1,25 @@
+## v0.21.0
+
+[v0.20.0...v0.21.0](https://github.com/Jannchie/tgit/compare/v0.20.0...v0.21.0)
+
+### :rocket: Breaking Changes
+
+- **cli**: replace typer with click for cli commands and tests - By [Jannchie](mailto:jannchie@gmail.com) in [31f8664](https://github.com/Jannchie/tgit/commit/31f8664)
+
+### :adhesive_bandage: Fixes
+
+- **interactive-settings**: improve input cancellation handling && update reset tests && sort filtered diff files - By [Jannchie](mailto:jannchie@gmail.com) in [8307321](https://github.com/Jannchie/tgit/commit/8307321)
+
+### :lipstick: Styles
+
+- **typing**: add explicit type annotations - By [Jannchie](mailto:panjianqi@preferred.jp) in [3f2832b](https://github.com/Jannchie/tgit/commit/3f2832b)
+- **utils**: clean up command output formatting - By [Jannchie](mailto:jannchie@gmail.com) in [86bd5e7](https://github.com/Jannchie/tgit/commit/86bd5e7)
+
+### :wrench: Chores
+
+- **deps**: update lock file - By [Jannchie](mailto:jannchie@gmail.com) in [fba0eff](https://github.com/Jannchie/tgit/commit/fba0eff)
+- **vscode**: remove coverage-gutters extension && switch python type to debugpy - By [Jannchie](mailto:panjianqi@preferred.jp) in [1cb2cbe](https://github.com/Jannchie/tgit/commit/1cb2cbe)
+
 ## v0.20.0
 
 [v0.19.0...v0.20.0](https://github.com/Jannchie/tgit/compare/v0.19.0...v0.20.0)
