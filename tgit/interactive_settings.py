@@ -148,7 +148,7 @@ def _configure_global_settings() -> None:
     print("[green]Global settings saved successfully![/green]")
 
 
-def _configure_workspace_settings() -> None:
+def _configure_workspace_settings() -> None:  # noqa: C901, PLR0911
     """Configure workspace-specific settings."""
     workspace_settings_path = Path.cwd() / ".tgit" / "settings.json"
     current_settings = load_workspace_settings()

@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime, UTC
 import git
 import re
+from click.testing import CliRunner
 
 
 from tgit.changelog import (
@@ -765,8 +766,10 @@ class TestChangelogFunction:
     @patch("tgit.changelog.handle_changelog")
     def test_changelog_function_defaults(self, mock_handle):
         """Test changelog function with default arguments."""
-        changelog()
-
+        runner = CliRunner()
+        result = runner.invoke(changelog, ["."])
+        
+        assert result.exit_code == 0
         mock_handle.assert_called_once()
         # Get the actual args passed to handle_changelog - it should be a ChangelogArgs object
         called_args = mock_handle.call_args[0][0]
@@ -779,8 +782,10 @@ class TestChangelogFunction:
     @patch("tgit.changelog.handle_changelog")
     def test_changelog_function_with_output_flag(self, mock_handle):
         """Test changelog function with output flag."""
-        changelog(output="")
-
+        runner = CliRunner()
+        result = runner.invoke(changelog, [".", "--output", ""])
+        
+        assert result.exit_code == 0
         mock_handle.assert_called_once()
         args = mock_handle.call_args[0][0]
         assert args.output == "CHANGELOG.md"
@@ -788,8 +793,10 @@ class TestChangelogFunction:
     @patch("tgit.changelog.handle_changelog")
     def test_changelog_function_with_custom_args(self, mock_handle):
         """Test changelog function with custom arguments."""
-        changelog(path="/tmp", from_raw="v1.0.0", to_raw="v1.1.0", verbose=2, output="custom.md")  # noqa: S108
-
+        runner = CliRunner()
+        result = runner.invoke(changelog, ["/tmp", "--from", "v1.0.0", "--to", "v1.1.0", "-vv", "--output", "custom.md"])  # noqa: S108
+        
+        assert result.exit_code == 0
         mock_handle.assert_called_once()
         args = mock_handle.call_args[0][0]
         assert args.path == "/tmp"  # noqa: S108

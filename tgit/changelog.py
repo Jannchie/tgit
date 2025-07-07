@@ -6,8 +6,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+import click
 import git
-import typer
 from markdown_it.token import Token
 from rich import print
 from rich.console import Console, ConsoleOptions, RenderResult
@@ -103,13 +103,26 @@ def get_commit_hash_from_tag(repo: git.Repo, tag: str) -> str | None:
         return None
 
 
+@click.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+@click.option("-f", "--from", "from_raw", help="From hash/tag")
+@click.option("-t", "--to", "to_raw", help="To hash/tag")
+@click.option("-v", "--verbose", count=True, help="increase output verbosity")
+@click.option("-o", "--output", help="output file")
 def changelog(
-    path: str = typer.Argument(".", help="repository path"),
-    from_raw: str = typer.Option(None, "-f", "--from", help="From hash/tag"),
-    to_raw: str = typer.Option(None, "-t", "--to", help="To hash/tag"),
-    verbose: int = typer.Option(0, "-v", "--verbose", count=True, help="increase output verbosity"),
-    output: str = typer.Option(None, "-o", "--output", help="output file"),
+    path: str,
+    from_raw: str | None,
+    to_raw: str | None,
+    verbose: int,
+    output: str | None,
 ) -> None:
+    """
+    Generate a changelog from git commit history.
+
+    This command analyzes the commit history of a git repository and generates a changelog in markdown format.
+    You can specify a range of commits using tags or hashes, or generate changelogs for all unreleased changes.
+    The output can be printed to the console or saved to a file.
+    """
     # Handle the output parameter like argparse const behavior
     output_value = None if output is None else output or "CHANGELOG.md"
 

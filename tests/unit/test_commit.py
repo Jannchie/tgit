@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch, MagicMock
 import git
 from pathlib import Path
 import tempfile
+from click.testing import CliRunner
 
 from tgit.commit import (
     CommitArgs,
@@ -543,8 +544,10 @@ class TestCommitFunction:
     @patch("tgit.commit.handle_commit")
     def test_commit_function_default_args(self, mock_handle_commit):
         """Test commit function with default arguments."""
-        commit()
+        runner = CliRunner()
+        result = runner.invoke(commit, [])
         
+        assert result.exit_code == 0
         # Check that handle_commit was called once
         mock_handle_commit.assert_called_once()
         
@@ -558,8 +561,10 @@ class TestCommitFunction:
     @patch("tgit.commit.handle_commit")
     def test_commit_function_with_args(self, mock_handle_commit):
         """Test commit function with custom arguments."""
-        commit(message=["feat", "add feature"], emoji=True, breaking=True, ai=True)
+        runner = CliRunner()
+        result = runner.invoke(commit, ["feat", "add feature", "--emoji", "--breaking", "--ai"])
         
+        assert result.exit_code == 0
         expected_args = CommitArgs(message=["feat", "add feature"], emoji=True, breaking=True, ai=True)
         mock_handle_commit.assert_called_once()
         

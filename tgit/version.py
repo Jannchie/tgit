@@ -11,9 +11,9 @@ from dataclasses import dataclass
 from difflib import Differ
 from pathlib import Path
 
+import click
 import git
 import questionary
-import typer
 from questionary import Choice
 
 from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type, handle_changelog
@@ -624,27 +624,41 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
     run_command(commands_str)
 
 
+@click.command()
+@click.argument("path", default=".", type=click.Path(exists=True))
+@click.option("-v", "--verbose", count=True, help="increase output verbosity")
+@click.option("--no-commit", is_flag=True, help="do not commit the changes")
+@click.option("--no-tag", is_flag=True, help="do not create a tag")
+@click.option("--no-push", is_flag=True, help="do not push the changes")
+@click.option("-r", "--recursive", is_flag=True, help="bump all packages in the monorepo")
+@click.option("-p", "--patch", is_flag=True, help="patch version")
+@click.option("-m", "--minor", is_flag=True, help="minor version")
+@click.option("-M", "--major", is_flag=True, help="major version")
+@click.option("-pp", "--prepatch", help="prepatch version")
+@click.option("-pm", "--preminor", help="preminor version")
+@click.option("-pM", "--premajor", help="premajor version")
+@click.option("--custom", is_flag=True, help="custom version to bump to")
 def version(  # noqa: PLR0913
     *,
-    path: str = typer.Argument(".", help="path to the file to update"),
-    verbose: int = typer.Option(0, "-v", "--verbose", count=True, help="increase output verbosity"),
-    no_commit: bool = typer.Option(False, "--no-commit", help="do not commit the changes"),
-    no_tag: bool = typer.Option(False, "--no-tag", help="do not create a tag"),
-    no_push: bool = typer.Option(False, "--no-push", help="do not push the changes"),
-    recursive: bool = typer.Option(False, "-r", "--recursive", help="bump all packages in the monorepo"),
-    patch: bool = typer.Option(False, "-p", "--patch", help="patch version"),
-    minor: bool = typer.Option(False, "-m", "--minor", help="minor version"),
-    major: bool = typer.Option(False, "-M", "--major", help="major version"),
-    prepatch: str = typer.Option(None, "-pp", "--prepatch", help="prepatch version"),
-    preminor: str = typer.Option(None, "-pm", "--preminor", help="preminor version"),
-    premajor: str = typer.Option(None, "-pM", "--premajor", help="premajor version"),
-    custom: bool = typer.Option(False, "--custom", help="custom version to bump to"),
+    path: str,
+    verbose: int,
+    no_commit: bool,
+    no_tag: bool,
+    no_push: bool,
+    recursive: bool,
+    patch: bool,
+    minor: bool,
+    major: bool,
+    custom: bool,
+    prepatch: str = "",
+    preminor: str = "",
+    premajor: str = "",
 ) -> None:
     # Check for mutually exclusive options
     exclusive_options: list[bool | str] = [patch, minor, major, prepatch, preminor, premajor, custom]
     if sum(bool(opt) for opt in exclusive_options) > 1:
-        typer.echo("Error: Only one version bump option can be specified at a time.")
-        raise typer.Exit(1)
+        click.echo("Error: Only one version bump option can be specified at a time.")
+        raise click.Abort
 
     args = VersionArgs(
         version="",  # This will be determined later
@@ -655,9 +669,9 @@ def version(  # noqa: PLR0913
         patch=patch,
         minor=minor,
         major=major,
-        prepatch=prepatch or "",
-        preminor=preminor or "",
-        premajor=premajor or "",
+        prepatch=prepatch,
+        preminor=preminor,
+        premajor=premajor,
         recursive=recursive,
         custom="" if not custom else "custom",
         path=path,

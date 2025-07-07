@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import click
 import git
-import typer
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 from rich import get_console, print
@@ -25,14 +25,15 @@ commit_types = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "wi
 commit_file = "commit.txt"
 commit_prompt_template = env.get_template("commit.txt")
 
-# Define typer arguments/options at module level to avoid B008
-MESSAGE_ARG = typer.Argument(
-    None,
-    help="the first word should be the type, if the message is more than two parts, the second part should be the scope",
+# Define click arguments/options at module level to avoid B008
+MESSAGE_ARG = click.argument(
+    "message",
+    nargs=-1,
+    required=False,
 )
-EMOJI_OPT = typer.Option(False, "-e", "--emoji", help="use emojis")
-BREAKING_OPT = typer.Option(False, "-b", "--breaking", help="breaking change")
-AI_OPT = typer.Option(False, "-a", "--ai", help="use ai")
+EMOJI_OPT = click.option("-e", "--emoji", is_flag=True, help="use emojis")
+BREAKING_OPT = click.option("-b", "--breaking", is_flag=True, help="breaking change")
+AI_OPT = click.option("-a", "--ai", is_flag=True, help="use ai")
 
 MAX_DIFF_LINES = 1000
 NUMSTAT_PARTS = 3
@@ -235,14 +236,20 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
     )
 
 
+@click.command()
+@MESSAGE_ARG
+@EMOJI_OPT
+@BREAKING_OPT
+@AI_OPT
 def commit(
     *,
-    message: list[str] = MESSAGE_ARG,
-    emoji: bool = EMOJI_OPT,
-    breaking: bool = BREAKING_OPT,
-    ai: bool = AI_OPT,
+    message: tuple[str, ...],
+    emoji: bool,
+    breaking: bool,
+    ai: bool,
 ) -> None:
-    args = CommitArgs(message=message or [], emoji=emoji, breaking=breaking, ai=ai)
+    """Commit changes to the Git repository. Supports AI-generated commit messages or manual type/scope/message specification."""
+    args = CommitArgs(message=list(message), emoji=emoji, breaking=breaking, ai=ai)
     handle_commit(args)
 
 

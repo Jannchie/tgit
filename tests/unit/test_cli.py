@@ -1,69 +1,68 @@
 import pytest
 from unittest.mock import patch, MagicMock
-import typer
+import click
 import threading
 import time
+from click.testing import CliRunner
 
-from tgit.cli import app, version_callback, main
+from tgit.cli import app, version_callback
 
 
 class TestCLI:
     """Test cases for the CLI module"""
 
     def test_app_instance(self):
-        """Test that app is a Typer instance with correct configuration"""
-        assert isinstance(app, typer.Typer)
-        assert app.info.name == "tgit"
-        assert app.info.help == "TGIT cli"
-        assert app.info.no_args_is_help is True
+        """Test that app is a Click group with correct configuration"""
+        assert isinstance(app, click.Group)
+        assert app.name == "tgit"
+        assert app.help == "TGIT cli"
+        assert app.no_args_is_help is True
 
     def test_commands_registered(self):
         """Test that all expected commands are registered"""
         # Just verify the app object exists and has the right type
-        # since the command registration details may vary by Typer version
-        assert isinstance(app, typer.Typer)
+        # since the command registration details may vary by Click version
+        assert isinstance(app, click.Group)
 
     @patch("tgit.cli.importlib.metadata.version")
     @patch("tgit.cli.console.print")
     def test_version_callback_true(self, mock_print, mock_version):
         """Test version callback when value is True"""
         mock_version.return_value = "1.0.0"
+        mock_ctx = MagicMock()
+        mock_ctx.resilient_parsing = False
+        mock_param = MagicMock()
         
-        with pytest.raises(typer.Exit):
-            version_callback(value=True)
+        version_callback(ctx=mock_ctx, _param=mock_param, value=True)
         
         mock_version.assert_called_once_with("tgit")
         mock_print.assert_called_once_with("TGIT - ver.1.0.0", highlight=False)
+        mock_ctx.exit.assert_called_once()
 
     @patch("tgit.cli.importlib.metadata.version")
     @patch("tgit.cli.console.print")
     def test_version_callback_false(self, mock_print, mock_version):
         """Test version callback when value is False"""
-        version_callback(value=False)
+        mock_ctx = MagicMock()
+        mock_ctx.resilient_parsing = False
+        mock_param = MagicMock()
+        
+        version_callback(ctx=mock_ctx, _param=mock_param, value=False)
         
         mock_version.assert_not_called()
         mock_print.assert_not_called()
+        mock_ctx.exit.assert_not_called()
 
     @patch("tgit.cli.threading.Thread")
-    def test_main_starts_openai_import_thread(self, mock_thread):
-        """Test that main starts a thread for OpenAI import"""
+    def test_app_starts_openai_import_thread(self, mock_thread):
+        """Test that app starts a thread for OpenAI import"""
         mock_thread_instance = MagicMock()
         mock_thread.return_value = mock_thread_instance
         
-        main(_version=False)
+        # Directly call the app function to test the callback
+        app.callback()
         
-        mock_thread.assert_called_once()
-        mock_thread_instance.start.assert_called_once()
-
-    @patch("tgit.cli.threading.Thread")
-    def test_main_with_version_false(self, mock_thread):
-        """Test main function with version=False"""
-        mock_thread_instance = MagicMock()
-        mock_thread.return_value = mock_thread_instance
-        
-        main(_version=False)
-        
-        # Should still start the import thread
+        # The app should run the callback and start the thread
         mock_thread.assert_called_once()
         mock_thread_instance.start.assert_called_once()
 
@@ -82,23 +81,8 @@ class TestCLI:
         
         assert import_called.is_set()
 
-    @patch("tgit.cli.threading.Thread")
-    def test_openai_import_with_exception_suppression(self, mock_thread):
-        """Test that OpenAI import exceptions are suppressed"""
-        # Create a mock thread that we can control
-        mock_thread_instance = MagicMock()
-        mock_thread.return_value = mock_thread_instance
-        
-        main(_version=False)
-        
-        # Just verify that the thread was created and started
-        mock_thread.assert_called_once()
-        mock_thread_instance.start.assert_called_once()
-
     def test_app_callback_registration(self):
-        """Test that main is registered as app callback"""
-        # The callback should be registered - check if app has the callback mechanism
-        # This may vary by Typer version, so we'll check if the app object is properly configured
-        assert isinstance(app, typer.Typer)
-        # In newer Typer versions, the callback structure might be different
-        # We'll just verify the app exists and is configured correctly
+        """Test that app is properly configured"""
+        # Check if app has the callback mechanism
+        assert isinstance(app, click.Group)
+        # Verify the app exists and is configured correctly
