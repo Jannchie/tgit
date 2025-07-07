@@ -122,7 +122,7 @@ def get_filtered_diff_files(repo: git.Repo) -> tuple[list[str], list[str]]:
     lock_files: list[str] = []
 
     # 过滤文件
-    for filename in all_changed_files:
+    for filename in sorted(all_changed_files):
         if filename.endswith(".lock"):
             lock_files.append(filename)
             continue

@@ -159,45 +159,48 @@ def _configure_workspace_settings() -> None:
     ).ask():
         return
 
-    # Collect all inputs without early returns
-    api_key = (
-        questionary.text(
-            "OpenAI API Key (workspace override)",
-            default=current_settings.get("apiKey", ""),
-        ).ask()
-        or ""
-    )
+    # Collect all inputs with early returns on cancel
+    api_key = questionary.text(
+        "OpenAI API Key (workspace override)",
+        default=current_settings.get("apiKey", ""),
+    ).ask()
+    if api_key is None:
+        return
 
-    api_url = (
-        questionary.text(
-            "API URL (workspace override)",
-            default=current_settings.get("apiUrl", ""),
-        ).ask()
-        or ""
-    )
+    api_url = questionary.text(
+        "API URL (workspace override)",
+        default=current_settings.get("apiUrl", ""),
+    ).ask()
+    if api_url is None:
+        return
 
-    model = (
-        questionary.text(
-            "Model name (workspace override)",
-            default=current_settings.get("model", ""),
-        ).ask()
-        or ""
-    )
+    model = questionary.text(
+        "Model name (workspace override)",
+        default=current_settings.get("model", ""),
+    ).ask()
+    if model is None:
+        return
 
     show_command = questionary.confirm(
         "Show git commands before execution",
         default=current_settings.get("show_command", True),
     ).ask()
+    if show_command is None:
+        return
 
     skip_confirm = questionary.confirm(
         "Skip confirmation prompts",
         default=current_settings.get("skip_confirm", False),
     ).ask()
+    if skip_confirm is None:
+        return
 
     commit_emoji = questionary.confirm(
         "Use emoji in commit messages",
         default=current_settings.get("commit", {}).get("emoji", False),
     ).ask()
+    if commit_emoji is None:
+        return
 
     # Build settings dictionary
     new_settings = {
