@@ -1,3 +1,19 @@
+## v0.22.0
+
+[v0.21.1...v0.22.0](https://github.com/Jannchie/tgit/compare/v0.21.1...v0.22.0)
+
+### :rocket: Breaking Changes
+
+- **settings**: unify config and settings command && centralize settings logic in utils - By [Jannchie](mailto:jannchie@gmail.com) in [c51a4c4](https://github.com/Jannchie/tgit/commit/c51a4c4)
+
+### :sparkles: Features
+
+- **version**: detect and display version files before updating - By [Jannchie](mailto:jannchie@gmail.com) in [44f0c36](https://github.com/Jannchie/tgit/commit/44f0c36)
+
+### :memo: Documentation
+
+- **readme**: expand features and usage instructions - By [Jannchie](mailto:jannchie@gmail.com) in [e34a78c](https://github.com/Jannchie/tgit/commit/e34a78c)
+
 ## v0.21.1
 
 [v0.21.0...v0.21.1](https://github.com/Jannchie/tgit/compare/v0.21.0...v0.21.1)
