@@ -14,6 +14,7 @@ from tgit.version import (
     _prompt_for_version_choice,
     bump_version,
     get_default_bump_by_commits_dict,
+    get_detected_files,
     get_next_version,
     get_version_from_cargo_toml,
     get_version_from_files,

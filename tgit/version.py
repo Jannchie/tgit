@@ -284,11 +284,56 @@ def get_default_bump_by_commits_dict(commits_by_type: dict[str, list[git.Commit]
     return "patch"
 
 
+def get_detected_files(path: str) -> list[Path]:
+    """获取递归模式下检测到的所有版本文件。"""
+    current_path = Path(path).resolve()
+    filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts"]
+    detected_files: list[Path] = []
+
+    # 需要忽略 node_modules 目录
+    for root, dirs, files in os.walk(current_path):
+        if "node_modules" in dirs:
+            dirs.remove("node_modules")
+        for file in files:
+            if file in filenames:
+                file_path = Path(root) / file
+                detected_files.append(file_path)
+
+    return detected_files
+
+
+def get_root_detected_files(path: str) -> list[Path]:
+    """获取根目录下检测到的所有版本文件。"""
+    current_path = Path(path).resolve()
+    filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts"]
+    detected_files: list[Path] = []
+
+    for filename in filenames:
+        file_path = current_path / filename
+        if file_path.exists():
+            detected_files.append(file_path)
+
+    return detected_files
+
+
 def handle_version(args: VersionArgs) -> None:
     verbose = args.verbose
     path = args.path
     prev_version = get_current_version(path, verbose)
     reclusive = args.recursive
+
+    # 在版本选择前显示检测到的文件
+    detected_files = get_detected_files(path) if reclusive else get_root_detected_files(path)
+
+    if detected_files:
+        console.print(f"Detected [cyan bold]{len(detected_files)}[/cyan bold] files to update:")
+        current_path = Path(path).resolve()
+        for file_path in detected_files:
+            relative_path = file_path.relative_to(current_path)
+            console.print(f"  - {relative_path}")
+    else:
+        console.print("No version files detected for update.")
+        return
 
     if next_version := get_next_version(args, prev_version, verbose):
         # 获取目标 tag 名
@@ -490,37 +535,29 @@ def update_version_files(
     if verbose > 0:
         console.print(f"Current path: [cyan bold]{current_path}")
 
-    if reclusive:
-        # 获取当前目录及其子目录下，所有名称在上述列表中的文件
-        # 使用os.walk()函数，可以遍历指定目录下的所有子目录和文件
-        filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts"]
-        # 需要忽略 node_modules 目录
-        for root, dirs, files in os.walk(current_path):
-            if "node_modules" in dirs:
-                dirs.remove("node_modules")
-            for file in files:
-                if file in filenames:
-                    # file_path = os.path.join(root, file)
-                    file_path = Path(root) / file
-                    update_version_in_file(verbose, next_version_str, file, file_path)
-    else:
+    # 获取检测到的文件列表
+    detected_files = get_detected_files(args.path) if reclusive else get_root_detected_files(args.path)
+
+    # 更新文件
+    for file_path in detected_files:
         # Check if we're in a test environment to avoid interactive prompts
         is_test_env = "pytest" in sys.modules or "unittest" in sys.modules
-        update_file_in_root(next_version_str, verbose, current_path, show_diff=not is_test_env)
+        show_diff = not is_test_env and not reclusive
+        update_version_in_file(verbose, next_version_str, file_path.name, file_path, show_diff=show_diff)
 
 
-def update_version_in_file(verbose: int, next_version_str: str, file: str, file_path: Path) -> None:
+def update_version_in_file(verbose: int, next_version_str: str, file: str, file_path: Path, *, show_diff: bool = False) -> None:
     # sourcery skip: collection-into-set, merge-duplicate-blocks, remove-redundant-if
     if file == "package.json":
-        update_file(str(file_path), r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=False)
+        update_file(str(file_path), r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=show_diff)
     elif file in ("pyproject.toml", "build.gradle.kts"):
-        update_file(str(file_path), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+        update_file(str(file_path), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
     elif file == "setup.py":
-        update_file(str(file_path), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=False)
+        update_file(str(file_path), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=show_diff)
     elif file == "Cargo.toml":
-        update_file(str(file_path), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=False)
+        update_file(str(file_path), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
     elif file in ("VERSION", "VERSION.txt"):
-        update_file(str(file_path), None, next_version_str, verbose, show_diff=False)
+        update_file(str(file_path), None, next_version_str, verbose, show_diff=show_diff)
 
 
 def update_file_in_root(next_version_str: str, verbose: int, root_path: Path, *, show_diff: bool = True) -> None:
