@@ -555,7 +555,7 @@ def update_version_in_file(verbose: int, next_version_str: str, file: str, file_
     elif file == "setup.py":
         update_file(str(file_path), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=show_diff)
     elif file == "Cargo.toml":
-        update_file(str(file_path), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
+        update_cargo_toml_version(str(file_path), next_version_str, verbose, show_diff=show_diff)
     elif file in ("VERSION", "VERSION.txt"):
         update_file(str(file_path), None, next_version_str, verbose, show_diff=show_diff)
 
@@ -564,7 +564,7 @@ def update_file_in_root(next_version_str: str, verbose: int, root_path: Path, *,
     update_file(str(root_path / "package.json"), r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=show_diff)
     update_file(str(root_path / "pyproject.toml"), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
     update_file(str(root_path / "setup.py"), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=show_diff)
-    update_file(str(root_path / "Cargo.toml"), r'(?m)^version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
+    update_cargo_toml_version(str(root_path / "Cargo.toml"), next_version_str, verbose, show_diff=show_diff)
     update_file(
         str(root_path / "build.gradle.kts"),
         r'version\s*=\s*".*?"',
@@ -587,6 +587,37 @@ def update_file(filename: str, search_pattern: str | None, replace_text: str, ve
     new_content = re.sub(search_pattern, replace_text, content) if search_pattern else replace_text
     if show_diff:
         show_file_diff(content, new_content, str(file_path))
+    with file_path.open("w") as f:
+        f.write(new_content)
+
+
+def update_cargo_toml_version(filename: str, next_version_str: str, verbose: int, *, show_diff: bool = True) -> None:
+    """Update version in Cargo.toml, specifically in the [package] section only."""
+    file_path = Path(filename)
+    if not file_path.exists():
+        return
+    if verbose > 0:
+        console.print(f"Updating {file_path}")
+
+    with file_path.open() as f:
+        content = f.read()
+
+    # Use regex to match version in [package] section only
+    # This pattern matches:
+    # 1. [package] section header
+    # 2. Any content until version = "..."
+    # 3. Captures the version line to replace
+    pattern = r'(\[package\].*?)(version\s*=\s*"[^"]*")'
+
+    def replace_version(match: re.Match[str]) -> str:
+        package_section = match.group(1)
+        return f'{package_section}version = "{next_version_str}"'
+
+    new_content = re.sub(pattern, replace_version, content, flags=re.DOTALL)
+
+    if show_diff:
+        show_file_diff(content, new_content, str(file_path))
+
     with file_path.open("w") as f:
         f.write(new_content)
 

@@ -24,6 +24,7 @@ from tgit.version import (
     get_version_from_version_file,
     get_version_from_version_txt,
     show_file_diff,
+    update_cargo_toml_version,
 )
 
 
@@ -738,3 +739,86 @@ class TestShowFileDiff:
         with pytest.raises(SystemExit):
             show_file_diff(old_content, new_content, "test.txt")
         mock_confirm.assert_called_once_with("Do you want to continue?", default=True)
+
+
+class TestCargoTomlVersionUpdate:
+    """Test cases for Cargo.toml version updating."""
+
+    def test_update_cargo_toml_version_package_section_only(self, tmp_path):
+        """Test that update_cargo_toml_version only updates version in [package] section."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml_content = """[package]
+name = "test-package"
+version = "1.0.0"
+authors = ["Test Author"]
+
+[dependencies]
+serde = { version = "1.0.0", features = ["derive"] }
+
+[dev-dependencies]
+tokio = { version = "1.0.0", features = ["full"] }
+
+[workspace]
+members = ["subcrate"]
+
+# Some other version reference that should NOT be changed
+# version = "should-not-change"
+"""
+        cargo_toml.write_text(cargo_toml_content)
+
+        # Update version
+        update_cargo_toml_version(str(cargo_toml), "2.0.0", 0, show_diff=False)
+
+        # Read updated content
+        updated_content = cargo_toml.read_text()
+
+        # Verify only the package version was updated
+        assert 'version = "2.0.0"' in updated_content
+        assert 'serde = { version = "1.0.0"' in updated_content  # Dependency version unchanged
+        assert 'tokio = { version = "1.0.0"' in updated_content  # Dev dependency version unchanged
+        assert '# version = "should-not-change"' in updated_content  # Comment unchanged
+
+        # Count occurrences to ensure only one version was changed
+        assert updated_content.count('version = "2.0.0"') == 1
+        assert updated_content.count('version = "1.0.0"') == 2  # The two dependency versions remain
+
+    def test_update_cargo_toml_version_complex_package_section(self, tmp_path):
+        """Test updating version in a more complex [package] section."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml_content = """[package]
+name = "complex-package"
+version = "0.1.0"
+edition = "2021"
+authors = ["Author One", "Author Two"]
+license = "MIT"
+description = "A test package"
+repository = "https://github.com/test/test"
+
+[lib]
+name = "complex_package"
+path = "src/lib.rs"
+
+[dependencies]
+log = { version = "0.4.0" }
+
+[workspace]
+members = ["other-crate"]
+"""
+        cargo_toml.write_text(cargo_toml_content)
+
+        update_cargo_toml_version(str(cargo_toml), "0.2.0", 0, show_diff=False)
+
+        updated_content = cargo_toml.read_text()
+
+        # Verify correct update
+        assert 'version = "0.2.0"' in updated_content
+        assert 'log = { version = "0.4.0" }' in updated_content  # Dependency unchanged
+        assert updated_content.count('version = "0.2.0"') == 1
+        assert updated_content.count('version = "0.4.0"') == 1
+
+    def test_update_cargo_toml_version_file_not_exists(self, tmp_path):
+        """Test that function handles non-existent file gracefully."""
+        non_existent_file = str(tmp_path / "nonexistent.toml")
+        
+        # Should not raise an error
+        update_cargo_toml_version(non_existent_file, "1.0.0", 0, show_diff=False)
