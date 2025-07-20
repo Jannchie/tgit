@@ -1,3 +1,16 @@
+## v0.23.0
+
+[v0.22.0...v0.23.0](https://github.com/Jannchie/tgit/compare/v0.22.0...v0.23.0)
+
+### :sparkles: Features
+
+- **changelog**: add up-to-date and empty change checks - By [Jannchie](mailto:jannchie@gmail.com) in [2ab2427](https://github.com/Jannchie/tgit/commit/2ab2427)
+- **version**: update cargo toml version in package section only - By [Jannchie](mailto:jannchie@gmail.com) in [4c38ef9](https://github.com/Jannchie/tgit/commit/4c38ef9)
+
+### :wrench: Chores
+
+- update lock file - By [Jannchie](mailto:jannchie@gmail.com) in [184c304](https://github.com/Jannchie/tgit/commit/184c304)
+
 ## v0.22.0
 
 [v0.21.1...v0.22.0](https://github.com/Jannchie/tgit/compare/v0.21.1...v0.22.0)
