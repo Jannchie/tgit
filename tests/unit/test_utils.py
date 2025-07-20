@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 from tgit.utils import run_command, simple_run_command, get_commit_command, type_emojis
+from tgit.types import TGitSettings, CommitSettings
 
 
 class TestRunCommand:
@@ -16,9 +17,14 @@ class TestRunCommand:
         process_mock = mock_popen.return_value
         process_mock.communicate.return_value = (b"output", b"")
         process_mock.returncode = 0
+        settings = TGitSettings(
+            commit=CommitSettings(emoji=False, types=[]),
+            api_key="", api_url="", model="",
+            show_command=False, skip_confirm=False
+        )
 
         # Act
-        run_command("echo 'test'")
+        run_command(settings, "echo 'test'")
 
         # Assert
         mock_confirm.assert_called_once_with("Do you want to continue?", default=True)
@@ -30,89 +36,102 @@ class TestRunCommand:
         """Test run_command when user cancels execution."""
         # Arrange
         mock_confirm.return_value.ask.return_value = False
+        settings = TGitSettings(
+            commit=CommitSettings(emoji=False, types=[]),
+            api_key="", api_url="", model="",
+            show_command=False, skip_confirm=False
+        )
 
         # Act
-        run_command("echo 'test'")
+        run_command(settings, "echo 'test'")
 
         # Assert
         mock_confirm.assert_called_once_with("Do you want to continue?", default=True)
         mock_popen.assert_not_called()
 
-    @patch("tgit.utils.settings")
     @patch("tgit.utils.subprocess.Popen")
     @patch("tgit.utils.questionary.confirm")
-    def test_run_command_skip_confirm(self, mock_confirm, mock_popen, mock_settings):
+    def test_run_command_skip_confirm(self, mock_confirm, mock_popen):
         """Test run_command when skip_confirm is True."""
         # Arrange
-        mock_settings.skip_confirm = True
-        mock_settings.show_command = False
+        settings = TGitSettings(
+            commit=CommitSettings(emoji=False, types=[]),
+            api_key="", api_url="", model="",
+            show_command=False, skip_confirm=True
+        )
         process_mock = mock_popen.return_value
         process_mock.communicate.return_value = (b"output", b"")
         process_mock.returncode = 0
 
         # Act
-        run_command("echo 'test'")
+        run_command(settings, "echo 'test'")
 
         # Assert
         mock_confirm.assert_not_called()
         mock_popen.assert_called_once()
 
-    @patch("tgit.utils.settings")
     @patch("tgit.utils.console.print")
     @patch("tgit.utils.subprocess.Popen")
     @patch("tgit.utils.questionary.confirm")
-    def test_run_command_show_command(self, mock_confirm, mock_popen, mock_console_print, mock_settings):
+    def test_run_command_show_command(self, mock_confirm, mock_popen, mock_console_print):
         """Test run_command when show_command is True."""
         # Arrange
-        mock_settings.show_command = True
-        mock_settings.skip_confirm = False
+        settings = TGitSettings(
+            commit=CommitSettings(emoji=False, types=[]),
+            api_key="", api_url="", model="",
+            show_command=True, skip_confirm=False
+        )
         mock_confirm.return_value.ask.return_value = True
         process_mock = mock_popen.return_value
         process_mock.communicate.return_value = (b"output", b"")
         process_mock.returncode = 0
 
         # Act
-        run_command("echo 'test'")
+        run_command(settings, "echo 'test'")
 
         # Assert
         assert mock_console_print.call_count >= 1
         mock_confirm.assert_called_once()
         mock_popen.assert_called_once()
 
-    @patch("tgit.utils.settings")
     @patch("tgit.utils.subprocess.Popen")
     @patch("tgit.utils.questionary.confirm")
     @patch("tgit.utils.sys.stderr.write")
-    def test_run_command_error_handling(self, mock_stderr_write, mock_confirm, mock_popen, mock_settings):
+    def test_run_command_error_handling(self, mock_stderr_write, mock_confirm, mock_popen):
         """Test run_command error handling."""
         # Arrange
-        mock_settings.skip_confirm = True
-        mock_settings.show_command = False
+        settings = TGitSettings(
+            commit=CommitSettings(emoji=False, types=[]),
+            api_key="", api_url="", model="",
+            show_command=False, skip_confirm=True
+        )
         mock_confirm.return_value.ask.return_value = True
         process_mock = mock_popen.return_value
         process_mock.communicate.return_value = (b"", b"error message")
         process_mock.returncode = 1
 
         # Act
-        run_command("failing command")
+        run_command(settings, "failing command")
 
         # Assert
         mock_stderr_write.assert_called_once_with("error message")
 
-    @patch("tgit.utils.settings")
     @patch("tgit.utils.subprocess.Popen")
     @patch("tgit.utils.questionary.confirm")
-    def test_run_command_multiple_commands(self, mock_confirm, mock_popen, mock_settings):
+    def test_run_command_multiple_commands(self, mock_confirm, mock_popen):
         """Test run_command with multiple commands."""
         # Arrange
-        mock_settings.skip_confirm = True
-        mock_settings.show_command = False
+        settings = TGitSettings(
+            commit=CommitSettings(emoji=False, types=[]),
+            api_key="", api_url="", model="",
+            show_command=False, skip_confirm=True
+        )
         process_mock = mock_popen.return_value
         process_mock.communicate.return_value = (b"output", b"")
         process_mock.returncode = 0
 
         # Act
-        run_command("echo 'first'\necho 'second'")
+        run_command(settings, "echo 'first'\necho 'second'")
 
         # Assert
         assert mock_popen.call_count == 2

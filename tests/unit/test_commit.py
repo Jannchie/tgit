@@ -446,7 +446,11 @@ class TestHandleCommit:
         handle_commit(args)
         
         mock_get_ai_command.assert_called_once_with()
-        mock_run_command.assert_called_once_with("git commit -m 'feat: add feature'")
+        # run_command is called with settings and command
+        mock_run_command.assert_called_once()
+        call_args = mock_run_command.call_args[0]
+        assert len(call_args) == 2
+        assert call_args[1] == "git commit -m 'feat: add feature'"
 
     @patch("tgit.commit.get_ai_command")
     @patch("tgit.commit.run_command")
@@ -458,7 +462,11 @@ class TestHandleCommit:
         handle_commit(args)
         
         mock_get_ai_command.assert_called_once_with()
-        mock_run_command.assert_called_once_with("git commit -m 'feat: add feature'")
+        # run_command is called with settings and command
+        mock_run_command.assert_called_once()
+        call_args = mock_run_command.call_args[0]
+        assert len(call_args) == 2
+        assert call_args[1] == "git commit -m 'feat: add feature'"
 
     @patch("tgit.commit.get_ai_command")
     @patch("tgit.commit.run_command")
@@ -470,7 +478,11 @@ class TestHandleCommit:
         handle_commit(args)
         
         mock_get_ai_command.assert_called_once_with(specified_type="feat")
-        mock_run_command.assert_called_once_with("git commit -m 'feat: add feature'")
+        # run_command is called with settings and command
+        mock_run_command.assert_called_once()
+        call_args = mock_run_command.call_args[0]
+        assert len(call_args) == 2
+        assert call_args[1] == "git commit -m 'feat: add feature'"
 
     def test_handle_commit_single_message_invalid_type(self):
         """Test handle_commit with single message (invalid type)."""
@@ -495,7 +507,8 @@ class TestHandleCommit:
         mock_get_commit_command.assert_called_once_with(
             "feat", None, "add feature", use_emoji=False, is_breaking=False
         )
-        mock_run_command.assert_called_once_with("git commit -m 'feat: add feature'")
+        # run_command is called with settings and command
+        mock_run_command.assert_called_once_with(mock_settings, "git commit -m 'feat: add feature'")
 
     @patch("tgit.commit.get_commit_command")
     @patch("tgit.commit.run_command")
@@ -511,7 +524,8 @@ class TestHandleCommit:
         mock_get_commit_command.assert_called_once_with(
             "feat", "auth", "add login", use_emoji=False, is_breaking=False
         )
-        mock_run_command.assert_called_once_with("git commit -m 'feat(auth): add login'")
+        # run_command is called with settings and command
+        mock_run_command.assert_called_once_with(mock_settings, "git commit -m 'feat(auth): add login'")
 
     @patch("tgit.commit.get_commit_command")
     @patch("tgit.commit.run_command")
@@ -527,6 +541,8 @@ class TestHandleCommit:
         mock_get_commit_command.assert_called_once_with(
             "feat", None, "add feature", use_emoji=True, is_breaking=False
         )
+        # run_command is called with settings and command
+        mock_run_command.assert_called_once_with(mock_settings, "git commit -m '✨ feat: add feature'")
 
     def test_handle_commit_invalid_type_in_full_message(self):
         """Test handle_commit with invalid type in full message."""

@@ -872,3 +872,44 @@ class TestHandleChangelog:
         mock_get_range.assert_called_once_with(mock_repo_instance, "v1.0.0", "v1.1.0")
         mock_generate.assert_called_once_with(mock_repo_instance, ["segment1"])
         mock_print.assert_called_once_with("generated changelog", None, prepend=False)
+
+    @patch("tgit.changelog.git.Repo")
+    @patch("tgit.changelog.extract_latest_tag_from_changelog")
+    @patch("tgit.changelog.prepare_changelog_segments")
+    @patch("tgit.changelog.get_latest_git_tag")
+    @patch("tgit.changelog.print")
+    def test_handle_changelog_already_up_to_date(self, mock_print, mock_get_latest_tag, mock_prepare, mock_extract, mock_repo):
+        """Test handle_changelog when changelog is already up to date."""
+        mock_repo_instance = Mock()
+        mock_repo.return_value = mock_repo_instance
+
+        mock_extract.return_value = "v1.2.0"
+        mock_get_latest_tag.return_value = "v1.2.0"
+        mock_prepare.return_value = []  # No segments to process
+
+        args = ChangelogArgs(path=".", from_raw=None, to_raw=None, verbose=0, output="CHANGELOG.md")
+
+        with patch("pathlib.Path.exists", return_value=True):
+            handle_changelog(args)
+
+            mock_extract.assert_called_once_with("CHANGELOG.md")
+            mock_prepare.assert_called_once_with(mock_repo_instance, "v1.2.0", None)
+            mock_get_latest_tag.assert_called_once_with(mock_repo_instance)
+            mock_print.assert_called_once_with("[green]Changelog is already up to date.[/green]")
+
+    @patch("tgit.changelog.git.Repo")
+    @patch("tgit.changelog.prepare_changelog_segments")
+    @patch("tgit.changelog.print")
+    def test_handle_changelog_no_changes_no_existing_file(self, mock_print, mock_prepare, mock_repo):
+        """Test handle_changelog when there are no changes and no existing file."""
+        mock_repo_instance = Mock()
+        mock_repo.return_value = mock_repo_instance
+
+        mock_prepare.return_value = []  # No segments to process
+
+        args = ChangelogArgs(path=".", from_raw=None, to_raw=None, verbose=0, output=None)
+
+        handle_changelog(args)
+
+        mock_prepare.assert_called_once_with(mock_repo_instance, None, None)
+        mock_print.assert_called_once_with("[yellow]No changes found, nothing to output.[/yellow]")
