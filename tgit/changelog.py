@@ -423,6 +423,18 @@ def handle_changelog(args: ChangelogArgs, current_tag: str | None = None) -> Non
         segments = prepare_changelog_segments(repo, latest_tag_in_file, current_tag)
         prepend = bool(latest_tag_in_file)
 
+    # 检查是否有新的更改需要生成 changelog
+    if not segments:
+        if latest_tag_in_file:
+            # 检查文件中的最新 tag 是否已经是仓库中的最新 tag
+            latest_repo_tag = get_latest_git_tag(repo)
+            if latest_tag_in_file == latest_repo_tag:
+                print("[green]Changelog is already up to date.[/green]")
+                return
+        else:
+            print("[yellow]No changes found, nothing to output.[/yellow]")
+            return
+
     # 生成 changelog
     changelogs = _generate_changelogs_from_segments(repo, segments)
 
@@ -449,6 +461,9 @@ def _get_range_segments(repo: git.Repo, from_raw: str | None, to_raw: str | None
 
 def _generate_changelogs_from_segments(repo: git.Repo, segments: list[VersionSegment]) -> str:
     """从分段列表生成 changelog"""
+    if not segments:
+        return ""
+
     changelogs = ""
 
     with Progress() as progress:
