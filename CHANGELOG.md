@@ -1,3 +1,15 @@
+## v0.23.1
+
+[v0.23.0...v0.23.1](https://github.com/Jannchie/tgit/compare/v0.23.0...v0.23.1)
+
+### :adhesive_bandage: Fixes
+
+- **tests**: update model mock value in settings test - By [Jannchie](mailto:jannchie@gmail.com) in [a9ea795](https://github.com/Jannchie/tgit/commit/a9ea795)
+
+### :art: Refactors
+
+- **openai-client**: initialize client with kwargs - By [Jannchie](mailto:jannchie@gmail.com) in [3b5051b](https://github.com/Jannchie/tgit/commit/3b5051b)
+
 ## v0.23.0
 
 [v0.22.0...v0.23.0](https://github.com/Jannchie/tgit/compare/v0.22.0...v0.23.0)
