@@ -305,8 +305,10 @@ class TestCreateOpenAIClient:
         result = _create_openai_client()
         
         assert result == mock_client
-        assert mock_client.base_url == "https://api.example.com"
-        assert mock_client.api_key == "test-key"
+        mock_openai.Client.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://api.example.com"
+        )
 
 
 class TestGenerateCommitWithAI:

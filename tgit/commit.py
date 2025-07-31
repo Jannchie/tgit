@@ -154,12 +154,15 @@ def _check_openai_availability() -> None:
 def _create_openai_client() -> "Client":  # type: ignore[misc]
     """创建并配置 OpenAI 客户端"""
     openai = _import_openai()
-    client = openai.Client()
-    if settings.api_url:
-        client.base_url = settings.api_url
+
+    # 准备客户端参数
+    kwargs = {}
     if settings.api_key:
-        client.api_key = settings.api_key
-    return client
+        kwargs["api_key"] = settings.api_key
+    if settings.api_url:
+        kwargs["base_url"] = settings.api_url
+
+    return openai.Client(**kwargs)
 
 
 def _generate_commit_with_ai(diff: str, specified_type: str | None, current_branch: str) -> CommitData | None:
