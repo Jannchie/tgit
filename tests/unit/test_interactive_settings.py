@@ -168,7 +168,7 @@ class TestConfigureGlobalSettings:
         mock_text.return_value.ask.side_effect = [
             "test-api-key",  # API key
             "https://api.example.com",  # API URL
-            "gpt-4o"  # model
+            "gpt-4.1"  # model
         ]
         mock_confirm.return_value.ask.side_effect = [
             True,   # show_command
