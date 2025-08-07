@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -15,10 +16,13 @@ from tgit.version import (
     _prompt_for_version_choice,
     _should_ignore_path,
     bump_version,
+    execute_git_commands,
     get_current_version,
+    get_custom_version,
     get_default_bump_by_commits_dict,
     get_detected_files,
     get_next_version,
+    get_pre_release_identifier,
     get_version_from_cargo_toml,
     get_version_from_files,
     get_version_from_git,
@@ -29,6 +33,7 @@ from tgit.version import (
     get_version_from_version_txt,
     show_file_diff,
     update_cargo_toml_version,
+    version,
 )
 
 
@@ -1283,22 +1288,22 @@ class TestPreReleaseVersionHandling:
         """Test _apply_version_choice with prepatch."""
         prev_version = Version(1, 2, 3)
         target = VersionChoice(bump="prepatch", previous_version=prev_version)
-        
+
         with patch("tgit.version.questionary.text") as mock_text:
             mock_text.return_value.ask.return_value = "alpha"
             result = _apply_version_choice(target, prev_version)
-            
+
             assert result == Version(1, 2, 4, release="alpha")
 
     def test_apply_version_choice_custom(self):
         """Test _apply_version_choice with custom version."""
         prev_version = Version(1, 2, 3)
         target = VersionChoice(bump="custom", previous_version=prev_version)
-        
+
         with patch("tgit.version.questionary.text") as mock_text:
             mock_text.return_value.ask.return_value = "5.0.0"
             result = _apply_version_choice(target, prev_version)
-            
+
             assert result == Version(5, 0, 0)
 
 
@@ -1317,9 +1322,9 @@ build-backend = "flit_core.buildapi"
 version = "1.2.3"
 """
         pyproject_toml.write_text(content)
-        
+
         result = get_version_from_files(tmp_path)
-        
+
         assert result == Version(1, 2, 3)
 
     def test_get_version_from_files_setuptools_support(self, tmp_path):
@@ -1330,9 +1335,9 @@ version = "1.2.3"
 version = "2.1.0"
 """
         pyproject_toml.write_text(content)
-        
+
         result = get_version_from_files(tmp_path)
-        
+
         assert result == Version(2, 1, 0)
 
     def test_get_version_from_files_priority_order(self, tmp_path):
@@ -1344,9 +1349,9 @@ version = "2.1.0"
         (tmp_path / "Cargo.toml").write_text('[package]\nversion = "4.0.0"')
         (tmp_path / "VERSION").write_text("5.0.0")
         (tmp_path / "VERSION.txt").write_text("6.0.0")
-        
+
         result = get_version_from_files(tmp_path)
-        
+
         # Should return the highest priority version (package.json = priority 1)
         assert result == Version(1, 0, 0)
 
@@ -1358,9 +1363,9 @@ version = "2.1.0"
 name = "test-package"
 """
         pyproject_toml.write_text(content)
-        
+
         result = get_version_from_pyproject_toml(tmp_path)
-        
+
         assert result is None
 
     def test_get_version_from_package_json_no_version_key(self, tmp_path):
@@ -1368,9 +1373,9 @@ name = "test-package"
         package_json = tmp_path / "package.json"
         content = '{"name": "test-package"}'
         package_json.write_text(content)
-        
+
         result = get_version_from_package_json(tmp_path)
-        
+
         assert result is None
 
 
@@ -1378,25 +1383,775 @@ class TestBumpVersionErrorHandling:
     """Test bump_version function error handling."""
 
     @patch("tgit.version.get_detected_files")
-    @patch("tgit.version.get_root_detected_files") 
+    @patch("tgit.version.get_root_detected_files")
     @patch("tgit.version.get_current_version")
     @patch("tgit.version.console")
     def test_bump_version_no_version_files(self, mock_console, mock_get_current, mock_get_root_files, mock_get_files):
         """Test handle_version when no version files found."""
         from tgit.version import handle_version, Version
-        
+
         mock_get_files.return_value = []
         mock_get_root_files.return_value = []
         mock_get_current.return_value = Version.from_str("1.0.0")
-        
+
         # Create mock args
         args = Mock()
         args.path = "/fake/path"
         args.recursive = False
         args.verbose = 0  # Set verbose as integer, not Mock
-        
+
         # This should handle the case gracefully and print message about no files
         handle_version(args)
-        
+
         # Should print the message about no version files detected
         mock_console.print.assert_any_call("No version files detected for update.")
+
+
+class TestExecuteGitCommands:
+    """Test cases for execute_git_commands function."""
+
+    @patch("tgit.version.run_command")
+    @patch("tgit.version.get_commit_command")
+    @patch("tgit.version.settings")
+    def test_execute_git_commands_all_operations(self, mock_settings, mock_get_commit_command, mock_run_command):
+        """Test execute_git_commands with all operations enabled."""
+        # Setup
+        args = VersionArgs(
+            version="1.0.0",
+            verbose=0,
+            no_commit=False,
+            no_tag=False,
+            no_push=False,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=False,
+            custom="",
+            path=".",
+        )
+        next_version = Version(1, 0, 0)
+        mock_settings.commit.emoji = True
+        mock_get_commit_command.return_value = "git commit -m ':bookmark: version: v1.0.0'"
+
+        # Execute
+        execute_git_commands(args, next_version, 0)
+
+        # Verify
+        expected_commands = ["git add .", "git commit -m ':bookmark: version: v1.0.0'", "git tag v1.0.0", "git push", "git push --tag"]
+        expected_commands_str = "\n".join(expected_commands)
+        mock_run_command.assert_called_once_with(mock_settings, expected_commands_str)
+        mock_get_commit_command.assert_called_once_with("version", None, "v1.0.0", use_emoji=True)
+
+    @patch("tgit.version.run_command")
+    @patch("tgit.version.console")
+    @patch("tgit.version.settings")
+    def test_execute_git_commands_no_commit(self, mock_settings, mock_console, mock_run_command):
+        """Test execute_git_commands with no_commit=True."""
+        # Setup
+        args = VersionArgs(
+            version="1.0.0",
+            verbose=1,
+            no_commit=True,
+            no_tag=False,
+            no_push=False,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=False,
+            custom="",
+            path=".",
+        )
+        next_version = Version(1, 0, 0)
+
+        # Execute
+        execute_git_commands(args, next_version, 1)
+
+        # Verify
+        mock_console.print.assert_any_call("Skipping commit")
+        expected_commands = ["git tag v1.0.0", "git push", "git push --tag"]
+        expected_commands_str = "\n".join(expected_commands)
+        mock_run_command.assert_called_once_with(mock_settings, expected_commands_str)
+
+    @patch("tgit.version.run_command")
+    @patch("tgit.version.console")
+    @patch("tgit.version.settings")
+    def test_execute_git_commands_no_tag(self, mock_settings, mock_console, mock_run_command):
+        """Test execute_git_commands with no_tag=True."""
+        # Setup
+        args = VersionArgs(
+            version="1.0.0",
+            verbose=1,
+            no_commit=False,
+            no_tag=True,
+            no_push=False,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=False,
+            custom="",
+            path=".",
+        )
+        next_version = Version(1, 0, 0)
+        mock_settings.commit.emoji = False
+
+        # Execute
+        execute_git_commands(args, next_version, 1)
+
+        # Verify
+        mock_console.print.assert_any_call("Skipping tag")
+
+    @patch("tgit.version.run_command")
+    @patch("tgit.version.console")
+    @patch("tgit.version.settings")
+    def test_execute_git_commands_no_push(self, mock_settings, mock_console, mock_run_command):
+        """Test execute_git_commands with no_push=True."""
+        # Setup
+        args = VersionArgs(
+            version="1.0.0",
+            verbose=1,
+            no_commit=False,
+            no_tag=False,
+            no_push=True,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=False,
+            custom="",
+            path=".",
+        )
+        next_version = Version(1, 0, 0)
+
+        # Execute
+        execute_git_commands(args, next_version, 1)
+
+        # Verify
+        mock_console.print.assert_any_call("Skipping push")
+
+    @patch("tgit.version.run_command")
+    @patch("tgit.version.settings")
+    def test_execute_git_commands_all_disabled(self, mock_settings, mock_run_command):
+        """Test execute_git_commands with all operations disabled."""
+        # Setup
+        args = VersionArgs(
+            version="1.0.0",
+            verbose=0,
+            no_commit=True,
+            no_tag=True,
+            no_push=True,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=False,
+            custom="",
+            path=".",
+        )
+        next_version = Version(1, 0, 0)
+
+        # Execute
+        execute_git_commands(args, next_version, 0)
+
+        # Verify - should still call run_command with empty string
+        mock_run_command.assert_called_once_with(mock_settings, "")
+
+
+class TestPreReleaseAndCustomVersion:
+    """Test cases for pre-release and custom version functions."""
+
+    @patch("tgit.version.questionary")
+    def test_get_pre_release_identifier_success(self, mock_questionary):
+        """Test get_pre_release_identifier with valid input."""
+        mock_text = Mock()
+        mock_text.ask.return_value = "alpha.1"
+        mock_questionary.text.return_value = mock_text
+
+        result = get_pre_release_identifier()
+
+        assert result == "alpha.1"
+        mock_questionary.text.assert_called_once()
+
+    @patch("tgit.version.questionary")
+    def test_get_pre_release_identifier_cancel(self, mock_questionary):
+        """Test get_pre_release_identifier when user cancels."""
+        mock_text = Mock()
+        mock_text.ask.return_value = None
+        mock_questionary.text.return_value = mock_text
+
+        result = get_pre_release_identifier()
+
+        assert result is None
+
+    @patch("tgit.version.questionary")
+    def test_get_custom_version_success(self, mock_questionary):
+        """Test get_custom_version with valid semver input."""
+        mock_text = Mock()
+        mock_text.ask.return_value = "2.5.0-beta.3"
+        mock_questionary.text.return_value = mock_text
+
+        result = get_custom_version()
+
+        assert result is not None
+        assert result.major == 2
+        assert result.minor == 5
+        assert result.patch == 0
+        assert result.release == "beta.3"
+
+    @patch("tgit.version.questionary")
+    def test_get_custom_version_cancel(self, mock_questionary):
+        """Test get_custom_version when user cancels."""
+        mock_text = Mock()
+        mock_text.ask.return_value = None
+        mock_questionary.text.return_value = mock_text
+
+        result = get_custom_version()
+
+        assert result is None
+
+    @patch("tgit.version.questionary")
+    def test_get_custom_version_empty_string(self, mock_questionary):
+        """Test get_custom_version when user enters empty string."""
+        mock_text = Mock()
+        mock_text.ask.return_value = ""
+        mock_questionary.text.return_value = mock_text
+
+        result = get_custom_version()
+
+        assert result is None
+
+
+class TestExplicitVersionArgs:
+    """Test cases for explicit version argument handling."""
+
+    def test_handle_explicit_version_args_preminor(self):
+        """Test _handle_explicit_version_args with preminor."""
+        args = VersionArgs(
+            version="",
+            verbose=0,
+            no_commit=False,
+            no_tag=False,
+            no_push=False,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="rc",
+            premajor="",
+            recursive=False,
+            custom="",
+            path=".",
+        )
+        prev_version = Version(1, 2, 3)
+
+        result = _handle_explicit_version_args(args, prev_version)
+
+        assert result is not None
+        assert result.major == 1
+        assert result.minor == 3
+        assert result.patch == 0
+        assert result.release == "rc"
+
+    def test_handle_explicit_version_args_premajor(self):
+        """Test _handle_explicit_version_args with premajor."""
+        args = VersionArgs(
+            version="",
+            verbose=0,
+            no_commit=False,
+            no_tag=False,
+            no_push=False,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="beta",
+            recursive=False,
+            custom="",
+            path=".",
+        )
+        prev_version = Version(1, 2, 3)
+
+        result = _handle_explicit_version_args(args, prev_version)
+
+        assert result is not None
+        assert result.major == 2
+        assert result.minor == 0
+        assert result.patch == 0
+        assert result.release == "beta"
+
+    @patch("tgit.version.get_custom_version")
+    def test_handle_explicit_version_args_custom(self, mock_get_custom_version):
+        """Test _handle_explicit_version_args with custom."""
+        mock_get_custom_version.return_value = Version(3, 0, 0, release="special")
+        args = VersionArgs(
+            version="",
+            verbose=0,
+            no_commit=False,
+            no_tag=False,
+            no_push=False,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=False,
+            custom="custom",
+            path=".",
+        )
+        prev_version = Version(1, 2, 3)
+
+        result = _handle_explicit_version_args(args, prev_version)
+
+        assert result is not None
+        assert result.major == 3
+        assert result.minor == 0
+        assert result.patch == 0
+        assert result.release == "special"
+        mock_get_custom_version.assert_called_once()
+
+
+class TestVersionApplyChoice:
+    """Test cases for version choice application."""
+
+    @patch("tgit.version.get_pre_release_identifier")
+    def test_apply_version_choice_prepatch_with_release(self, mock_get_pre_release):
+        """Test _apply_version_choice with prepatch when user provides release."""
+        mock_get_pre_release.return_value = "alpha"
+        target = VersionChoice(Version(1, 2, 3), "prepatch")
+        prev_version = Version(1, 2, 3)
+
+        result = _apply_version_choice(target, prev_version)
+
+        assert result is not None
+        assert result.major == 1
+        assert result.minor == 2
+        assert result.patch == 4
+        assert result.release == "alpha"
+
+    @patch("tgit.version.get_pre_release_identifier")
+    def test_apply_version_choice_prepatch_cancelled(self, mock_get_pre_release):
+        """Test _apply_version_choice with prepatch when user cancels."""
+        mock_get_pre_release.return_value = None
+        target = VersionChoice(Version(1, 2, 3), "prepatch")
+        prev_version = Version(1, 2, 3)
+
+        result = _apply_version_choice(target, prev_version)
+
+        assert result is None
+
+    @patch("tgit.version.get_custom_version")
+    def test_apply_version_choice_custom_success(self, mock_get_custom_version):
+        """Test _apply_version_choice with custom when user provides version."""
+        mock_get_custom_version.return_value = Version(5, 0, 0)
+        target = VersionChoice(Version(1, 2, 3), "custom")
+        prev_version = Version(1, 2, 3)
+
+        result = _apply_version_choice(target, prev_version)
+
+        assert result is not None
+        assert result.major == 5
+        assert result.minor == 0
+        assert result.patch == 0
+
+    @patch("tgit.version.get_custom_version")
+    def test_apply_version_choice_custom_cancelled(self, mock_get_custom_version):
+        """Test _apply_version_choice with custom when user cancels."""
+        mock_get_custom_version.return_value = None
+        target = VersionChoice(Version(1, 2, 3), "custom")
+        prev_version = Version(1, 2, 3)
+
+        result = _apply_version_choice(target, prev_version)
+
+        assert result is None
+
+
+class TestVersionFileHandlingEdgeCases:
+    """Test cases for version file handling edge cases."""
+
+    def test_get_version_from_pyproject_toml_flit(self, tmp_path):
+        """Test get_version_from_pyproject_toml with flit metadata."""
+        pyproject_toml = tmp_path / "pyproject.toml"
+        pyproject_toml.write_text("""
+[tool.flit.metadata]
+version = "1.5.0"
+""")
+
+        result = get_version_from_pyproject_toml(tmp_path)
+
+        assert result is not None
+        assert result.major == 1
+        assert result.minor == 5
+        assert result.patch == 0
+
+    def test_get_version_from_pyproject_toml_setuptools(self, tmp_path):
+        """Test get_version_from_pyproject_toml with setuptools metadata."""
+        pyproject_toml = tmp_path / "pyproject.toml"
+        pyproject_toml.write_text("""
+[tool.setuptools.setup_requires]
+version = "2.1.0"
+""")
+
+        result = get_version_from_pyproject_toml(tmp_path)
+
+        assert result is not None
+        assert result.major == 2
+        assert result.minor == 1
+        assert result.patch == 0
+
+    @patch("tgit.version.console")
+    def test_get_version_from_cargo_toml_file_read_error(self, mock_console, tmp_path):
+        """Test get_version_from_cargo_toml with file read error."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text("valid content")
+        cargo_toml.chmod(0o000)  # Remove read permissions
+
+        try:
+            result = get_version_from_cargo_toml(tmp_path)
+
+            assert result is None
+            mock_console.print.assert_called()
+        finally:
+            cargo_toml.chmod(0o644)  # Restore permissions for cleanup
+
+    @patch("tgit.version.shutil.which")
+    def test_get_version_from_git_no_executable(self, mock_which, tmp_path):
+        """Test get_version_from_git when git executable is not found."""
+        mock_which.return_value = None
+
+        with pytest.raises(FileNotFoundError, match="Git executable not found"):
+            get_version_from_git(tmp_path)
+
+
+class TestCliCommand:
+    """Test cases for the CLI command."""
+
+    @patch("tgit.version.handle_version")
+    def test_version_command_basic(self, mock_handle_version):
+        """Test version command with basic parameters."""
+        from click.testing import CliRunner
+
+        runner = CliRunner()
+        result = runner.invoke(version, [])
+
+        assert result.exit_code == 0
+        mock_handle_version.assert_called_once()
+
+    def test_version_command_mutually_exclusive_options(self):
+        """Test version command with mutually exclusive options."""
+        from click.testing import CliRunner
+
+        runner = CliRunner()
+        result = runner.invoke(version, ["--patch", "--minor"])
+
+        assert result.exit_code != 0
+        assert "Only one version bump option can be specified" in result.output
+
+    @patch("tgit.version.handle_version")
+    def test_version_command_all_options(self, mock_handle_version):
+        """Test version command with all available options."""
+        from click.testing import CliRunner
+
+        runner = CliRunner()
+        result = runner.invoke(version, ["--verbose", "--verbose", "--no-commit", "--no-tag", "--no-push", "--recursive", "--patch", "."])
+
+        assert result.exit_code == 0
+        mock_handle_version.assert_called_once()
+
+        # Check that the VersionArgs object was created correctly
+        args = mock_handle_version.call_args[0][0]
+        assert args.verbose == 2
+        assert args.no_commit is True
+        assert args.no_tag is True
+        assert args.no_push is True
+        assert args.recursive is True
+        assert args.patch is True
+
+
+class TestRemainingEdgeCases:
+    """Test cases for remaining edge cases to improve coverage."""
+
+    def test_get_version_from_files_fallback_order(self, tmp_path):
+        """Test get_version_from_files fallback order."""
+        # Test setup.py fallback
+        setup_py = tmp_path / "setup.py"
+        setup_py.write_text('version="1.2.3"')
+
+        result = get_version_from_files(tmp_path)
+        assert result is not None
+        assert str(result) == "1.2.3"
+
+        # Test Cargo.toml fallback (when package.json doesn't exist)
+        setup_py.unlink()
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text("""
+[package]
+name = "test"
+version = "2.0.0"
+""")
+
+        result = get_version_from_files(tmp_path)
+        assert result is not None
+        assert str(result) == "2.0.0"
+
+        # Test VERSION file fallback
+        cargo_toml.unlink()
+        version_file = tmp_path / "VERSION"
+        version_file.write_text("3.0.0")
+
+        result = get_version_from_files(tmp_path)
+        assert result is not None
+        assert str(result) == "3.0.0"
+
+        # Test VERSION.txt fallback
+        version_file.unlink()
+        version_txt = tmp_path / "VERSION.txt"
+        version_txt.write_text("4.0.0")
+
+        result = get_version_from_files(tmp_path)
+        assert result is not None
+        assert str(result) == "4.0.0"
+
+    @patch("tgit.version.subprocess.run")
+    def test_get_version_from_git_with_tags(self, mock_run, tmp_path):
+        """Test get_version_from_git with version tags."""
+        # Mock successful git tag command with tags
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout.decode.return_value = "v1.0.0\nv1.1.0\nother-tag\nv2.0.0\n"
+        mock_run.return_value = mock_result
+
+        result = get_version_from_git(tmp_path)
+
+        assert result is not None
+        assert str(result) == "1.0.0"  # Should return first v-prefixed tag
+
+    @patch("tgit.version.subprocess.run")
+    def test_get_version_from_git_no_tags(self, mock_run, tmp_path):
+        """Test get_version_from_git when no tags exist."""
+        # Mock git tag command with no output
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout.decode.return_value = ""
+        mock_run.return_value = mock_result
+
+        result = get_version_from_git(tmp_path)
+
+        assert result is None
+
+    @patch("tgit.version.subprocess.run")
+    def test_get_version_from_git_command_failed(self, mock_run, tmp_path):
+        """Test get_version_from_git when git command fails."""
+        # Mock failed git tag command
+        mock_result = Mock()
+        mock_result.returncode = 1
+        mock_run.return_value = mock_result
+
+        result = get_version_from_git(tmp_path)
+
+        assert result is None
+
+    @patch("tgit.version.get_root_detected_files")
+    @patch("tgit.version.console")
+    def test_handle_version_no_files_detected(self, mock_console, mock_get_detected_files):
+        """Test handle_version when no version files are detected."""
+        from tgit.version import handle_version
+
+        # Setup
+        mock_get_detected_files.return_value = []
+        args = VersionArgs(
+            version="",
+            verbose=0,
+            no_commit=False,
+            no_tag=False,
+            no_push=False,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=False,
+            custom="",
+            path=".",
+        )
+
+        # Execute
+        handle_version(args)
+
+        # Verify
+        mock_console.print.assert_any_call("No version files detected for update.")
+
+    @patch("tgit.version.questionary")
+    def test_handle_interactive_version_selection_cancel(self, mock_questionary):
+        """Test _handle_interactive_version_selection when user cancels."""
+        mock_select = Mock()
+        mock_select.ask.return_value = None
+        mock_questionary.select.return_value = mock_select
+
+        prev_version = Version(1, 0, 0)
+        result = _handle_interactive_version_selection(prev_version, "patch", 0)
+
+        assert result is None
+
+    def test_update_file_nonexistent(self, tmp_path):
+        """Test update_file with non-existent file."""
+        from tgit.version import update_file
+
+        non_existent_file = tmp_path / "nonexistent.txt"
+
+        # Should not raise error, just return early
+        update_file(str(non_existent_file), r"old", "new", 0, show_diff=False)
+
+        # File should still not exist
+        assert not non_existent_file.exists()
+
+    def test_update_cargo_toml_version_nonexistent(self, tmp_path):
+        """Test update_cargo_toml_version with non-existent file."""
+        non_existent_file = tmp_path / "Cargo.toml"
+
+        # Should not raise error, just return early
+        update_cargo_toml_version(str(non_existent_file), "1.0.0", 0, show_diff=False)
+
+        # File should still not exist
+        assert not non_existent_file.exists()
+
+    @patch("tgit.version.Path.open")
+    def test_parse_gitignore_unicode_decode_error(self, mock_open):
+        """Test _parse_gitignore with UnicodeDecodeError."""
+        from tgit.version import _parse_gitignore
+
+        mock_open.side_effect = UnicodeDecodeError("utf-8", b"", 0, 1, "error")
+
+        result = _parse_gitignore(Path("/fake/.gitignore"))
+
+        assert result == []
+
+    @patch("tgit.version.Path.open")
+    def test_parse_gitignore_os_error(self, mock_open):
+        """Test _parse_gitignore with OSError."""
+        from tgit.version import _parse_gitignore
+
+        mock_open.side_effect = OSError("File not accessible")
+
+        result = _parse_gitignore(Path("/fake/.gitignore"))
+
+        assert result == []
+
+    def test_get_root_detected_files(self, tmp_path):
+        """Test get_root_detected_files functionality."""
+        from tgit.version import get_root_detected_files
+
+        # Create test files
+        package_json = tmp_path / "package.json"
+        package_json.write_text('{"version": "1.0.0"}')
+
+        version_file = tmp_path / "VERSION"
+        version_file.write_text("2.0.0")
+
+        # Test detection
+        detected = get_root_detected_files(str(tmp_path))
+
+        assert len(detected) == 2
+        assert any(f.name == "package.json" for f in detected)
+        assert any(f.name == "VERSION" for f in detected)
+
+    @patch("tgit.version.update_version_in_file")
+    @patch("tgit.version.get_detected_files")
+    @patch("tgit.version.console")
+    def test_update_version_files_verbose_mode(self, mock_console, mock_get_detected_files, mock_update_version_in_file):
+        """Test update_version_files in verbose mode."""
+        from tgit.version import update_version_files
+
+        mock_detected_file = Mock()
+        mock_detected_file.name = "package.json"
+        mock_get_detected_files.return_value = [mock_detected_file]
+
+        args = VersionArgs(
+            version="",
+            verbose=1,
+            no_commit=False,
+            no_tag=False,
+            no_push=False,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=True,
+            custom="",
+            path="/test",
+        )
+        next_version = Version(2, 0, 0)
+
+        update_version_files(args, next_version, 1, reclusive=True)
+
+        # Check verbose output
+        mock_console.print.assert_any_call("Current path: [cyan bold]/test")
+
+    def test_update_version_in_file_setup_py(self, tmp_path):
+        """Test update_version_in_file with setup.py file."""
+        from tgit.version import update_version_in_file
+
+        setup_py = tmp_path / "setup.py"
+        setup_py.write_text('version="1.0.0"')
+
+        update_version_in_file(0, "2.0.0", "setup.py", setup_py, show_diff=False)
+
+        content = setup_py.read_text()
+        assert "version='2.0.0'" in content
+
+    def test_update_version_in_file_build_gradle_kts(self, tmp_path):
+        """Test update_version_in_file with build.gradle.kts file."""
+        from tgit.version import update_version_in_file
+
+        build_file = tmp_path / "build.gradle.kts"
+        build_file.write_text('version = "1.0.0"')
+
+        update_version_in_file(0, "2.0.0", "build.gradle.kts", build_file, show_diff=False)
+
+        content = build_file.read_text()
+        assert 'version = "2.0.0"' in content
+
+    @patch("tgit.version.questionary")
+    @patch("tgit.version.sys.exit")
+    def test_show_file_diff_user_exits(self, mock_exit, mock_questionary):
+        """Test show_file_diff when user chooses to exit."""
+        from tgit.version import show_file_diff
+
+        mock_confirm = Mock()
+        mock_confirm.ask.return_value = False
+        mock_questionary.confirm.return_value = mock_confirm
+
+        show_file_diff("old content\n", "new content\n", "test.txt")
+
+        mock_exit.assert_called_once()
+
+    def test_format_diff_lines_with_question_mark(self):
+        """Test format_diff_lines with question mark lines."""
+        from tgit.version import format_diff_lines
+
+        diff = ["? ^^", "- old line", "+ new line"]
+        print_lines = {0: "?", 1: "-", 2: "+"}
+        diffs = []
+
+        format_diff_lines(diff, print_lines, diffs)
+
+        assert len(diffs) == 3
+        assert "[yellow]" in diffs[0]
+        assert "[red]" in diffs[1]
+        assert "[green]" in diffs[2]
