@@ -13,7 +13,7 @@ class TestAdd:
         """Test adding a single file"""
         runner = CliRunner()
         result = runner.invoke(add, ["test.txt"])
-        
+
         assert result.exit_code == 0
         mock_simple_run_command.assert_called_once_with("git add test.txt")
 
@@ -22,7 +22,7 @@ class TestAdd:
         """Test adding multiple files"""
         runner = CliRunner()
         result = runner.invoke(add, ["file1.txt", "file2.py", "file3.md"])
-        
+
         assert result.exit_code == 0
         mock_simple_run_command.assert_called_once_with("git add file1.txt file2.py file3.md")
 
@@ -31,7 +31,7 @@ class TestAdd:
         """Test adding files with spaces in names"""
         runner = CliRunner()
         result = runner.invoke(add, ["file with spaces.txt", "another file.py"])
-        
+
         assert result.exit_code == 0
         mock_simple_run_command.assert_called_once_with("git add file with spaces.txt another file.py")
 
@@ -40,7 +40,7 @@ class TestAdd:
         """Test adding empty file list"""
         runner = CliRunner()
         result = runner.invoke(add, [])
-        
+
         # Since files argument is required=True, this should fail
         assert result.exit_code == 2
         mock_simple_run_command.assert_not_called()
@@ -50,7 +50,7 @@ class TestAdd:
         """Test adding files with special characters"""
         runner = CliRunner()
         result = runner.invoke(add, ["file-with-dashes.txt", "file_with_underscores.py", "file.with.dots.md"])
-        
+
         assert result.exit_code == 0
         mock_simple_run_command.assert_called_once_with("git add file-with-dashes.txt file_with_underscores.py file.with.dots.md")
 
@@ -59,8 +59,8 @@ class TestAdd:
         """Test that exceptions from simple_run_command are propagated"""
         mock_simple_run_command.side_effect = Exception("Git command failed")
         runner = CliRunner()
-        
+
         result = runner.invoke(add, ["test.txt"])
-        
+
         # Exception should cause non-zero exit code
         assert result.exit_code != 0

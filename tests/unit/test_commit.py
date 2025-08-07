@@ -33,12 +33,7 @@ class TestCommitArgs:
 
     def test_commit_args_creation(self):
         """Test creating CommitArgs instance."""
-        args = CommitArgs(
-            message=["feat", "add new feature"],
-            emoji=True,
-            breaking=False,
-            ai=False
-        )
+        args = CommitArgs(message=["feat", "add new feature"], emoji=True, breaking=False, ai=False)
         assert args.message == ["feat", "add new feature"]
         assert args.emoji is True
         assert args.breaking is False
@@ -50,21 +45,14 @@ class TestTemplateParams:
 
     def test_template_params_creation(self):
         """Test creating TemplateParams instance."""
-        params = TemplateParams(
-            types=["feat", "fix"],
-            branch="main",
-            specified_type="feat"
-        )
+        params = TemplateParams(types=["feat", "fix"], branch="main", specified_type="feat")
         assert params.types == ["feat", "fix"]
         assert params.branch == "main"
         assert params.specified_type == "feat"
 
     def test_template_params_default_specified_type(self):
         """Test TemplateParams with default specified_type."""
-        params = TemplateParams(
-            types=["feat", "fix"],
-            branch="develop"
-        )
+        params = TemplateParams(types=["feat", "fix"], branch="develop")
         assert params.specified_type is None
 
 
@@ -73,12 +61,7 @@ class TestCommitData:
 
     def test_commit_data_creation(self):
         """Test creating CommitData instance."""
-        data = CommitData(
-            type="feat",
-            scope="auth",
-            msg="add login functionality",
-            is_breaking=False
-        )
+        data = CommitData(type="feat", scope="auth", msg="add login functionality", is_breaking=False)
         assert data.type == "feat"
         assert data.scope == "auth"
         assert data.msg == "add login functionality"
@@ -86,12 +69,7 @@ class TestCommitData:
 
     def test_commit_data_with_none_scope(self):
         """Test CommitData with None scope."""
-        data = CommitData(
-            type="fix",
-            scope=None,
-            msg="fix bug",
-            is_breaking=False
-        )
+        data = CommitData(type="fix", scope=None, msg="fix bug", is_breaking=False)
         assert data.scope is None
 
 
@@ -102,9 +80,9 @@ class TestGetChangedFilesFromStatus:
         """Test getting changed files with modified files."""
         mock_repo = Mock()
         mock_repo.git.diff.return_value = "M\tsrc/file1.py\nA\tsrc/file2.py\nD\tsrc/file3.py"
-        
+
         result = get_changed_files_from_status(mock_repo)
-        
+
         assert result == {"src/file1.py", "src/file2.py", "src/file3.py"}
         mock_repo.git.diff.assert_called_once_with("--cached", "--name-status", "-M")
 
@@ -112,27 +90,27 @@ class TestGetChangedFilesFromStatus:
         """Test getting changed files with renamed files."""
         mock_repo = Mock()
         mock_repo.git.diff.return_value = "R100\told_file.py\tnew_file.py\nM\tsrc/file1.py"
-        
+
         result = get_changed_files_from_status(mock_repo)
-        
+
         assert result == {"old_file.py", "new_file.py", "src/file1.py"}
 
     def test_get_changed_files_empty_diff(self):
         """Test getting changed files with empty diff."""
         mock_repo = Mock()
         mock_repo.git.diff.return_value = ""
-        
+
         result = get_changed_files_from_status(mock_repo)
-        
+
         assert result == set()
 
     def test_get_changed_files_malformed_lines(self):
         """Test handling malformed lines in diff output."""
         mock_repo = Mock()
         mock_repo.git.diff.return_value = "M\nincomplete_line\nA\tsrc/file.py"
-        
+
         result = get_changed_files_from_status(mock_repo)
-        
+
         assert result == {"src/file.py"}
 
 
@@ -143,14 +121,10 @@ class TestGetFileChangeSizes:
         """Test getting file change sizes for normal files."""
         mock_repo = Mock()
         mock_repo.git.diff.return_value = "10\t5\tsrc/file1.py\n20\t0\tsrc/file2.py\n0\t15\tsrc/file3.py"
-        
+
         result = get_file_change_sizes(mock_repo)
-        
-        expected = {
-            "src/file1.py": 15,
-            "src/file2.py": 20,
-            "src/file3.py": 15
-        }
+
+        expected = {"src/file1.py": 15, "src/file2.py": 20, "src/file3.py": 15}
         assert result == expected
         mock_repo.git.diff.assert_called_once_with("--cached", "--numstat", "-M")
 
@@ -158,31 +132,28 @@ class TestGetFileChangeSizes:
         """Test getting file change sizes for binary files."""
         mock_repo = Mock()
         mock_repo.git.diff.return_value = "-\t-\timage.png\n5\t3\tsrc/file.py"
-        
+
         result = get_file_change_sizes(mock_repo)
-        
-        expected = {
-            "image.png": 0,
-            "src/file.py": 8
-        }
+
+        expected = {"image.png": 0, "src/file.py": 8}
         assert result == expected
 
     def test_get_file_change_sizes_empty_diff(self):
         """Test getting file change sizes with empty diff."""
         mock_repo = Mock()
         mock_repo.git.diff.return_value = ""
-        
+
         result = get_file_change_sizes(mock_repo)
-        
+
         assert result == {}
 
     def test_get_file_change_sizes_malformed_lines(self):
         """Test handling malformed lines in numstat output."""
         mock_repo = Mock()
         mock_repo.git.diff.return_value = "invalid_line\n10\t5\tsrc/file.py\nincomplete"
-        
+
         result = get_file_change_sizes(mock_repo)
-        
+
         assert result == {"src/file.py": 15}
 
 
@@ -195,10 +166,10 @@ class TestGetFilteredDiffFiles:
         """Test filtering diff files with normal files."""
         mock_get_files.return_value = {"src/file1.py", "src/file2.py", "package.lock"}
         mock_get_sizes.return_value = {"src/file1.py": 100, "src/file2.py": 50}
-        
+
         mock_repo = Mock()
         files_to_include, lock_files = get_filtered_diff_files(mock_repo)
-        
+
         assert files_to_include == ["src/file1.py", "src/file2.py"]
         assert lock_files == ["package.lock"]
 
@@ -208,10 +179,10 @@ class TestGetFilteredDiffFiles:
         """Test filtering out large files."""
         mock_get_files.return_value = {"src/small.py", "src/large.py"}
         mock_get_sizes.return_value = {"src/small.py": 100, "src/large.py": MAX_DIFF_LINES + 1}
-        
+
         mock_repo = Mock()
         files_to_include, lock_files = get_filtered_diff_files(mock_repo)
-        
+
         assert files_to_include == ["src/small.py"]
         assert lock_files == []
 
@@ -221,10 +192,10 @@ class TestGetFilteredDiffFiles:
         """Test filtering files without size information."""
         mock_get_files.return_value = {"src/file1.py", "src/file2.py"}
         mock_get_sizes.return_value = {"src/file1.py": 100}  # Missing file2.py
-        
+
         mock_repo = Mock()
         files_to_include, lock_files = get_filtered_diff_files(mock_repo)
-        
+
         assert files_to_include == ["src/file1.py", "src/file2.py"]  # file2.py included with size 0
         assert lock_files == []
 
@@ -237,9 +208,9 @@ class TestOpenAIImport:
         """Test successful OpenAI import."""
         mock_openai = Mock()
         mock_import.return_value = mock_openai
-        
+
         result = _import_openai()
-        
+
         assert result == mock_openai
         mock_import.assert_called_once_with("openai")
 
@@ -247,7 +218,7 @@ class TestOpenAIImport:
     def test_import_openai_failure(self, mock_import):
         """Test OpenAI import failure."""
         mock_import.side_effect = ImportError("No module named 'openai'")
-        
+
         with pytest.raises(ImportError, match="openai package is not installed"):
             _import_openai()
 
@@ -255,17 +226,17 @@ class TestOpenAIImport:
     def test_check_openai_availability_success(self, mock_import):
         """Test checking OpenAI availability successfully."""
         mock_import.return_value = Mock()
-        
+
         # Should not raise an exception
         _check_openai_availability()
-        
+
         mock_import.assert_called_once()
 
     @patch("tgit.commit._import_openai")
     def test_check_openai_availability_failure(self, mock_import):
         """Test checking OpenAI availability failure."""
         mock_import.side_effect = ImportError("openai package is not installed")
-        
+
         with pytest.raises(ImportError):
             _check_openai_availability()
 
@@ -281,12 +252,12 @@ class TestCreateOpenAIClient:
         mock_client = Mock()
         mock_openai.Client.return_value = mock_client
         mock_import.return_value = mock_openai
-        
+
         mock_settings.api_url = None
         mock_settings.api_key = None
-        
+
         result = _create_openai_client()
-        
+
         assert result == mock_client
         mock_openai.Client.assert_called_once()
 
@@ -298,17 +269,14 @@ class TestCreateOpenAIClient:
         mock_client = Mock()
         mock_openai.Client.return_value = mock_client
         mock_import.return_value = mock_openai
-        
+
         mock_settings.api_url = "https://api.example.com"
         mock_settings.api_key = "test-key"
-        
+
         result = _create_openai_client()
-        
+
         assert result == mock_client
-        mock_openai.Client.assert_called_once_with(
-            api_key="test-key",
-            base_url="https://api.example.com"
-        )
+        mock_openai.Client.assert_called_once_with(api_key="test-key", base_url="https://api.example.com")
 
 
 class TestGenerateCommitWithAI:
@@ -325,15 +293,15 @@ class TestGenerateCommitWithAI:
         mock_create_client.return_value = mock_client
         mock_template.render.return_value = "system prompt"
         mock_settings.model = "gpt-4"
-        
+
         # Mock the response
         mock_response = Mock()
         mock_commit_data = CommitData(type="feat", scope="auth", msg="add login", is_breaking=False)
         mock_response.output_parsed = mock_commit_data
         mock_client.responses.parse.return_value = mock_response
-        
+
         result = _generate_commit_with_ai("diff content", "feat", "main")
-        
+
         assert result == mock_commit_data
         mock_check.assert_called_once()
         mock_create_client.assert_called_once()
@@ -347,7 +315,7 @@ class TestGenerateCommitWithAI:
         mock_client = Mock()
         mock_create_client.return_value = mock_client
         mock_client.responses.parse.side_effect = Exception("API Error")
-        
+
         with pytest.raises(Exception):
             _generate_commit_with_ai("diff content", None, "main")
 
@@ -361,10 +329,10 @@ class TestGetAICommand:
         """Test get_ai_command when not in git repo."""
         mock_cwd.return_value = Path(tempfile.gettempdir())
         mock_repo.side_effect = git.InvalidGitRepositoryError("Not a git repo")
-        
+
         with patch("tgit.commit.print") as mock_print:
             result = get_ai_command()
-            
+
             assert result is None
             mock_print.assert_called_once_with("[yellow]Not a git repository[/yellow]")
 
@@ -377,10 +345,10 @@ class TestGetAICommand:
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = ([], [])
-        
+
         with patch("tgit.commit.print") as mock_print:
             result = get_ai_command()
-            
+
             assert result is None
             mock_print.assert_called_once_with("[yellow]No files to commit, please add some files before using AI[/yellow]")
 
@@ -396,22 +364,20 @@ class TestGetAICommand:
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = (["src/file.py"], ["package.lock"])
-        
+
         mock_repo_instance.git.diff.return_value = "diff content"
         mock_repo_instance.active_branch.name = "main"
         mock_settings.commit.emoji = True
-        
+
         mock_commit_data = CommitData(type="feat", scope="auth", msg="add login", is_breaking=False)
         mock_generate.return_value = mock_commit_data
         mock_get_commit_command.return_value = "git commit -m 'feat(auth): add login'"
-        
+
         result = get_ai_command()
-        
+
         assert result == "git commit -m 'feat(auth): add login'"
         mock_generate.assert_called_once()
-        mock_get_commit_command.assert_called_once_with(
-            "feat", "auth", "add login", use_emoji=True, is_breaking=False
-        )
+        mock_get_commit_command.assert_called_once_with("feat", "auth", "add login", use_emoji=True, is_breaking=False)
 
     @patch("tgit.commit.Path.cwd")
     @patch("tgit.commit.git.Repo")
@@ -423,14 +389,14 @@ class TestGetAICommand:
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = (["src/file.py"], [])
-        
+
         mock_repo_instance.git.diff.return_value = "diff content"
         mock_repo_instance.active_branch.name = "main"
         mock_generate.side_effect = Exception("AI Error")
-        
+
         with patch("tgit.commit.print") as mock_print:
             result = get_ai_command()
-            
+
             assert result is None
             mock_print.assert_any_call("[red]Could not connect to AI provider[/red]")
 
@@ -443,10 +409,10 @@ class TestHandleCommit:
     def test_handle_commit_ai_mode(self, mock_run_command, mock_get_ai_command):
         """Test handle_commit in AI mode."""
         mock_get_ai_command.return_value = "git commit -m 'feat: add feature'"
-        
+
         args = CommitArgs(message=[], emoji=False, breaking=False, ai=True)
         handle_commit(args)
-        
+
         mock_get_ai_command.assert_called_once_with()
         # run_command is called with settings and command
         mock_run_command.assert_called_once()
@@ -459,10 +425,10 @@ class TestHandleCommit:
     def test_handle_commit_no_message(self, mock_run_command, mock_get_ai_command):
         """Test handle_commit with no message (fallback to AI)."""
         mock_get_ai_command.return_value = "git commit -m 'feat: add feature'"
-        
+
         args = CommitArgs(message=[], emoji=False, breaking=False, ai=False)
         handle_commit(args)
-        
+
         mock_get_ai_command.assert_called_once_with()
         # run_command is called with settings and command
         mock_run_command.assert_called_once()
@@ -475,10 +441,10 @@ class TestHandleCommit:
     def test_handle_commit_single_message_valid_type(self, mock_run_command, mock_get_ai_command):
         """Test handle_commit with single message (valid type)."""
         mock_get_ai_command.return_value = "git commit -m 'feat: add feature'"
-        
+
         args = CommitArgs(message=["feat"], emoji=False, breaking=False, ai=False)
         handle_commit(args)
-        
+
         mock_get_ai_command.assert_called_once_with(specified_type="feat")
         # run_command is called with settings and command
         mock_run_command.assert_called_once()
@@ -489,10 +455,10 @@ class TestHandleCommit:
     def test_handle_commit_single_message_invalid_type(self):
         """Test handle_commit with single message (invalid type)."""
         args = CommitArgs(message=["invalid"], emoji=False, breaking=False, ai=False)
-        
+
         with patch("tgit.commit.print") as mock_print:
             handle_commit(args)
-            
+
             mock_print.assert_any_call("Invalid type: invalid")
 
     @patch("tgit.commit.get_commit_command")
@@ -502,13 +468,11 @@ class TestHandleCommit:
         """Test handle_commit with full message."""
         mock_settings.commit.emoji = False
         mock_get_commit_command.return_value = "git commit -m 'feat: add feature'"
-        
+
         args = CommitArgs(message=["feat", "add feature"], emoji=False, breaking=False, ai=False)
         handle_commit(args)
-        
-        mock_get_commit_command.assert_called_once_with(
-            "feat", None, "add feature", use_emoji=False, is_breaking=False
-        )
+
+        mock_get_commit_command.assert_called_once_with("feat", None, "add feature", use_emoji=False, is_breaking=False)
         # run_command is called with settings and command
         mock_run_command.assert_called_once_with(mock_settings, "git commit -m 'feat: add feature'")
 
@@ -519,13 +483,11 @@ class TestHandleCommit:
         """Test handle_commit with scope."""
         mock_settings.commit.emoji = False
         mock_get_commit_command.return_value = "git commit -m 'feat(auth): add login'"
-        
+
         args = CommitArgs(message=["feat", "auth", "add", "login"], emoji=False, breaking=False, ai=False)
         handle_commit(args)
-        
-        mock_get_commit_command.assert_called_once_with(
-            "feat", "auth", "add login", use_emoji=False, is_breaking=False
-        )
+
+        mock_get_commit_command.assert_called_once_with("feat", "auth", "add login", use_emoji=False, is_breaking=False)
         # run_command is called with settings and command
         mock_run_command.assert_called_once_with(mock_settings, "git commit -m 'feat(auth): add login'")
 
@@ -536,23 +498,21 @@ class TestHandleCommit:
         """Test handle_commit with emoji override."""
         mock_settings.commit.emoji = False
         mock_get_commit_command.return_value = "git commit -m '✨ feat: add feature'"
-        
+
         args = CommitArgs(message=["feat", "add feature"], emoji=True, breaking=False, ai=False)
         handle_commit(args)
-        
-        mock_get_commit_command.assert_called_once_with(
-            "feat", None, "add feature", use_emoji=True, is_breaking=False
-        )
+
+        mock_get_commit_command.assert_called_once_with("feat", None, "add feature", use_emoji=True, is_breaking=False)
         # run_command is called with settings and command
         mock_run_command.assert_called_once_with(mock_settings, "git commit -m '✨ feat: add feature'")
 
     def test_handle_commit_invalid_type_in_full_message(self):
         """Test handle_commit with invalid type in full message."""
         args = CommitArgs(message=["invalid", "message"], emoji=False, breaking=False, ai=False)
-        
+
         with patch("tgit.commit.print") as mock_print:
             handle_commit(args)
-            
+
             mock_print.assert_any_call("Invalid type: invalid")
 
 
@@ -564,11 +524,11 @@ class TestCommitFunction:
         """Test commit function with default arguments."""
         runner = CliRunner()
         result = runner.invoke(commit, [])
-        
+
         assert result.exit_code == 0
         # Check that handle_commit was called once
         mock_handle_commit.assert_called_once()
-        
+
         # Get the actual args passed to handle_commit - it should be a CommitArgs object
         called_args = mock_handle_commit.call_args[0][0]
         assert hasattr(called_args, "message")
@@ -581,11 +541,11 @@ class TestCommitFunction:
         """Test commit function with custom arguments."""
         runner = CliRunner()
         result = runner.invoke(commit, ["feat", "add feature", "--emoji", "--breaking", "--ai"])
-        
+
         assert result.exit_code == 0
         expected_args = CommitArgs(message=["feat", "add feature"], emoji=True, breaking=True, ai=True)
         mock_handle_commit.assert_called_once()
-        
+
         # Check the args passed to handle_commit
         called_args = mock_handle_commit.call_args[0][0]
         assert called_args.message == expected_args.message

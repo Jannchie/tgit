@@ -32,9 +32,9 @@ class TestCLI:
         mock_ctx = MagicMock()
         mock_ctx.resilient_parsing = False
         mock_param = MagicMock()
-        
+
         version_callback(ctx=mock_ctx, _param=mock_param, value=True)
-        
+
         mock_version.assert_called_once_with("tgit")
         mock_print.assert_called_once_with("TGIT - ver.1.0.0", highlight=False)
         mock_ctx.exit.assert_called_once()
@@ -46,9 +46,9 @@ class TestCLI:
         mock_ctx = MagicMock()
         mock_ctx.resilient_parsing = False
         mock_param = MagicMock()
-        
+
         version_callback(ctx=mock_ctx, _param=mock_param, value=False)
-        
+
         mock_version.assert_not_called()
         mock_print.assert_not_called()
         mock_ctx.exit.assert_not_called()
@@ -58,10 +58,10 @@ class TestCLI:
         """Test that app starts a thread for OpenAI import"""
         mock_thread_instance = MagicMock()
         mock_thread.return_value = mock_thread_instance
-        
+
         # Directly call the app function to test the callback
         app.callback()
-        
+
         # The app should run the callback and start the thread
         mock_thread.assert_called_once()
         mock_thread_instance.start.assert_called_once()
@@ -71,14 +71,14 @@ class TestCLI:
         # We can't easily test the actual import function directly since it's nested,
         # but we can test that threading works and doesn't raise exceptions
         import_called = threading.Event()
-        
+
         def mock_import():
             import_called.set()
-        
+
         thread = threading.Thread(target=mock_import)
         thread.start()
         thread.join(timeout=1)
-        
+
         assert import_called.is_set()
 
     def test_app_callback_registration(self):

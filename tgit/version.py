@@ -306,10 +306,27 @@ def _should_ignore_path(path: Path, root_path: Path, gitignore_patterns: list[st
     """Check if a path should be ignored based on gitignore patterns and common virtual env dirs."""
     # Common virtual environment and build directories to ignore
     ignore_dirs = {
-        "venv", ".venv", "env", ".env", "virtualenv", ".virtualenv",
-        "node_modules", "__pycache__", ".pytest_cache", ".tox", ".nox",
-        "dist", "build", ".git", ".svn", ".hg", ".bzr",
-        "site-packages", ".mypy_cache", ".coverage", "htmlcov",
+        "venv",
+        ".venv",
+        "env",
+        ".env",
+        "virtualenv",
+        ".virtualenv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".tox",
+        ".nox",
+        "dist",
+        "build",
+        ".git",
+        ".svn",
+        ".hg",
+        ".bzr",
+        "site-packages",
+        ".mypy_cache",
+        ".coverage",
+        "htmlcov",
     }
 
     relative_path = path.relative_to(root_path)
@@ -335,7 +352,7 @@ def _should_ignore_path(path: Path, root_path: Path, gitignore_patterns: list[st
                 return True
             # Also check if any parent directory matches the pattern
             for i, _part in enumerate(path_parts[:-1]):
-                parent_path = "/".join(path_parts[:i+1])
+                parent_path = "/".join(path_parts[: i + 1])
                 if fnmatch.fnmatch(parent_path, pattern):
                     return True
 

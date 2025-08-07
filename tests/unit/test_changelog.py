@@ -1,11 +1,7 @@
 """Tests for changelog module."""
 
-import pytest
-from unittest.mock import Mock, patch, mock_open, MagicMock
-from pathlib import Path
+from unittest.mock import Mock, patch, mock_open
 from datetime import datetime, UTC
-import git
-import re
 from click.testing import CliRunner
 
 
@@ -92,9 +88,9 @@ class TestHeading:
         heading.text = Text("Main Title")
         console = Console()
         options = Mock()
-        
+
         result = list(heading.__rich_console__(console, options))
-        
+
         assert len(result) == 3  # Empty line, title, empty line
         assert result[0].plain == ""  # Empty line before
         assert result[1].plain == "# Main Title"
@@ -106,9 +102,9 @@ class TestHeading:
         heading.text = Text("Subtitle")
         console = Console()
         options = Mock()
-        
+
         result = list(heading.__rich_console__(console, options))
-        
+
         assert len(result) == 2  # Empty line, title
         assert result[0].plain == ""  # Empty line before
         assert result[1].plain == "## Subtitle"
@@ -119,9 +115,9 @@ class TestHeading:
         heading.text = Text("Sub-subtitle")
         console = Console()
         options = Mock()
-        
+
         result = list(heading.__rich_console__(console, options))
-        
+
         assert len(result) == 1  # Only title
         assert result[0].plain == "### Sub-subtitle"
 
@@ -845,7 +841,7 @@ class TestChangelogFunction:
         """Test changelog function with default arguments."""
         runner = CliRunner()
         result = runner.invoke(changelog, ["."])
-        
+
         assert result.exit_code == 0
         mock_handle.assert_called_once()
         # Get the actual args passed to handle_changelog - it should be a ChangelogArgs object
@@ -861,7 +857,7 @@ class TestChangelogFunction:
         """Test changelog function with output flag."""
         runner = CliRunner()
         result = runner.invoke(changelog, [".", "--output", ""])
-        
+
         assert result.exit_code == 0
         mock_handle.assert_called_once()
         args = mock_handle.call_args[0][0]
@@ -872,7 +868,7 @@ class TestChangelogFunction:
         """Test changelog function with custom arguments."""
         runner = CliRunner()
         result = runner.invoke(changelog, ["/tmp", "--from", "v1.0.0", "--to", "v1.1.0", "-vv", "--output", "custom.md"])  # noqa: S108
-        
+
         assert result.exit_code == 0
         mock_handle.assert_called_once()
         args = mock_handle.call_args[0][0]
@@ -1006,7 +1002,7 @@ class TestPrepareChangelogSegments:
 
         with patch("tgit.changelog.print") as mock_print:
             result = prepare_changelog_segments(mock_repo)
-            
+
             assert result == []
             mock_print.assert_called_once_with("[yellow]No tags found in the repository.[/yellow]")
 
@@ -1015,24 +1011,24 @@ class TestPrepareChangelogSegments:
     def test_prepare_changelog_segments_with_tags(self, mock_first_commit, mock_get_latest_tag):
         """Test prepare_changelog_segments with tags in repository."""
         mock_repo = Mock()
-        
+
         # Create mock tags
         mock_tag1 = Mock()
         mock_tag1.name = "v1.0.0"
         mock_tag1.commit.hexsha = "def456"
         mock_tag1.commit.committed_datetime = datetime(2023, 1, 1, tzinfo=UTC)
-        
+
         mock_tag2 = Mock()
         mock_tag2.name = "v2.0.0"
         mock_tag2.commit.hexsha = "ghi789"
         mock_tag2.commit.committed_datetime = datetime(2023, 2, 1, tzinfo=UTC)
-        
+
         mock_repo.tags = [mock_tag1, mock_tag2]
         mock_first_commit.return_value = "abc123"
         mock_get_latest_tag.return_value = "v2.0.0"
 
         result = prepare_changelog_segments(mock_repo)
-        
+
         assert len(result) >= 1
         # Should have version segments created
 
@@ -1041,18 +1037,18 @@ class TestPrepareChangelogSegments:
     def test_prepare_changelog_segments_with_current_tag(self, mock_first_commit, mock_get_latest_tag):
         """Test prepare_changelog_segments with current tag specified."""
         mock_repo = Mock()
-        
+
         mock_tag1 = Mock()
         mock_tag1.name = "v1.0.0"
         mock_tag1.commit.hexsha = "def456"
         mock_tag1.commit.committed_datetime = datetime(2023, 1, 1, tzinfo=UTC)
-        
+
         mock_repo.tags = [mock_tag1]
         mock_first_commit.return_value = "abc123"
         mock_get_latest_tag.return_value = "v1.0.0"
 
         result = prepare_changelog_segments(mock_repo, current_tag="v2.0.0")
-        
+
         assert len(result) >= 1
 
 
@@ -1065,14 +1061,14 @@ class TestRangeSegments:
         """Test _get_range_segments basic functionality."""
         mock_repo = Mock()
         mock_range.return_value = ("v1.0.0", "v2.0.0")
-        
+
         # Create mock segments
         segment1 = VersionSegment(from_hash="abc123", to_hash="def456", from_name="v1.0.0", to_name="v1.1.0")
         segment2 = VersionSegment(from_hash="def456", to_hash="ghi789", from_name="v1.1.0", to_name="v2.0.0")
         mock_prepare.return_value = [segment1, segment2]
-        
+
         result = _get_range_segments(mock_repo, "v1.0.0", "v2.0.0")
-        
+
         assert len(result) >= 0
 
 
@@ -1082,9 +1078,9 @@ class TestGenerateChangelogsFromSegments:
     def test_generate_changelogs_from_segments_empty(self):
         """Test _generate_changelogs_from_segments with empty segments."""
         mock_repo = Mock()
-        
+
         result = _generate_changelogs_from_segments(mock_repo, [])
-        
+
         assert result == ""
 
     @patch("tgit.changelog._process_commits")
@@ -1095,16 +1091,16 @@ class TestGenerateChangelogsFromSegments:
         """Test _generate_changelogs_from_segments with actual segments."""
         mock_repo = Mock()
         mock_repo.iter_commits.return_value = [Mock(), Mock()]
-        
+
         mock_process.return_value = [Mock(), Mock()]
         mock_group.return_value = {"feat": [Mock()]}
         mock_generate.return_value = "## v1.1.0\n\n### Features\n\n- New feature\n\n"
         mock_uri_safe.return_value = "https://github.com/user/repo"
-        
+
         segment = VersionSegment(from_hash="abc123", to_hash="def456", from_name="v1.0.0", to_name="v1.1.0")
-        
+
         result = _generate_changelogs_from_segments(mock_repo, [segment])
-        
+
         assert "v1.1.0" in result
 
 
@@ -1115,11 +1111,11 @@ class TestGetRemoteUriSafe:
         """Test _get_remote_uri_safe when remote URL is available."""
         mock_repo = Mock()
         mock_repo.remote.return_value.url = "https://github.com/user/repo.git"
-        
+
         with patch("tgit.changelog.get_remote_uri") as mock_get_uri:
             mock_get_uri.return_value = "https://github.com/user/repo"
             result = _get_remote_uri_safe(mock_repo)
-            
+
             assert result == "https://github.com/user/repo"
             mock_get_uri.assert_called_once_with("https://github.com/user/repo.git")
 
@@ -1127,9 +1123,9 @@ class TestGetRemoteUriSafe:
         """Test _get_remote_uri_safe when ValueError is raised."""
         mock_repo = Mock()
         mock_repo.remote.side_effect = ValueError("Origin not found")
-        
+
         result = _get_remote_uri_safe(mock_repo)
-        
+
         assert result is None
 
 
@@ -1137,7 +1133,7 @@ class TestGetChangelogByRange:
     """Test get_changelog_by_range function."""
 
     @patch("tgit.changelog.get_commits")
-    @patch("tgit.changelog.group_commits_by_type") 
+    @patch("tgit.changelog.group_commits_by_type")
     @patch("tgit.changelog.generate_changelog")
     @patch("tgit.changelog.get_remote_uri")
     def test_get_changelog_by_range_success(self, mock_get_uri, mock_generate, mock_group, mock_commits):
@@ -1148,10 +1144,10 @@ class TestGetChangelogByRange:
         mock_group.return_value = {"feat": [Mock()]}
         mock_generate.return_value = "changelog content"
         mock_get_uri.return_value = "https://github.com/user/repo"
-        
+
         result = get_changelog_by_range(mock_repo, "v1.0.0", "v2.0.0")
-        
+
         assert result == "changelog content"
-        mock_commits.assert_called_once_with(mock_repo, "v1.0.0", "v2.0.0") 
+        mock_commits.assert_called_once_with(mock_repo, "v1.0.0", "v2.0.0")
         mock_group.assert_called_once()
         mock_generate.assert_called_once()

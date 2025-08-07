@@ -822,7 +822,7 @@ members = ["other-crate"]
     def test_update_cargo_toml_version_file_not_exists(self, tmp_path):
         """Test that function handles non-existent file gracefully."""
         non_existent_file = str(tmp_path / "nonexistent.toml")
-        
+
         # Should not raise an error
         update_cargo_toml_version(non_existent_file, "1.0.0", 0, show_diff=False)
 
@@ -834,36 +834,36 @@ class TestParseGitignore:
         """Test parsing an existing gitignore file."""
         gitignore = tmp_path / ".gitignore"
         gitignore.write_text("*.log\nnode_modules/\n# This is a comment\nvenv\n\n")
-        
+
         patterns = _parse_gitignore(gitignore)
-        
+
         expected = ["*.log", "node_modules/", "venv"]
         assert patterns == expected
 
     def test_parse_gitignore_missing_file(self, tmp_path):
         """Test parsing a non-existent gitignore file."""
         gitignore = tmp_path / ".gitignore"
-        
+
         patterns = _parse_gitignore(gitignore)
-        
+
         assert patterns == []
 
     def test_parse_gitignore_empty_file(self, tmp_path):
         """Test parsing an empty gitignore file."""
         gitignore = tmp_path / ".gitignore"
         gitignore.write_text("")
-        
+
         patterns = _parse_gitignore(gitignore)
-        
+
         assert patterns == []
 
     def test_parse_gitignore_only_comments(self, tmp_path):
         """Test parsing gitignore file with only comments."""
         gitignore = tmp_path / ".gitignore"
         gitignore.write_text("# Comment 1\n# Comment 2\n")
-        
+
         patterns = _parse_gitignore(gitignore)
-        
+
         assert patterns == []
 
     def test_parse_gitignore_mixed_content(self, tmp_path):
@@ -881,22 +881,22 @@ __pycache__/
 venv/
 .venv/
 """)
-        
+
         patterns = _parse_gitignore(gitignore)
-        
+
         expected = ["node_modules/", "*.log", "__pycache__/", "*.pyc", "venv/", ".venv/"]
         assert patterns == expected
 
     def test_parse_gitignore_unicode_error(self, tmp_path):
         """Test parsing gitignore file with unicode decode error."""
         gitignore = tmp_path / ".gitignore"
-        
+
         # Write binary data that would cause UnicodeDecodeError
         with gitignore.open("wb") as f:
             f.write(b"\xff\xfe*.log\n")
-        
+
         patterns = _parse_gitignore(gitignore)
-        
+
         # Should handle the error gracefully and return empty list
         assert patterns == []
 
@@ -907,10 +907,10 @@ class TestShouldIgnorePath:
     def test_should_ignore_virtual_env_dirs(self, tmp_path):
         """Test ignoring common virtual environment directories."""
         root_path = tmp_path
-        
+
         # Test various virtual env directory names
         venv_dirs = ["venv", ".venv", "env", ".env", "virtualenv", ".virtualenv"]
-        
+
         for venv_dir in venv_dirs:
             test_path = root_path / venv_dir / "package.json"
             result = _should_ignore_path(test_path, root_path, [])
@@ -919,9 +919,9 @@ class TestShouldIgnorePath:
     def test_should_ignore_build_dirs(self, tmp_path):
         """Test ignoring common build directories."""
         root_path = tmp_path
-        
+
         build_dirs = ["__pycache__", "node_modules", "dist", "build", ".git"]
-        
+
         for build_dir in build_dirs:
             test_path = root_path / build_dir / "some_file.txt"
             result = _should_ignore_path(test_path, root_path, [])
@@ -931,35 +931,35 @@ class TestShouldIgnorePath:
         """Test ignoring site-packages directory."""
         root_path = tmp_path
         test_path = root_path / "lib" / "python3.9" / "site-packages" / "package.json"
-        
+
         result = _should_ignore_path(test_path, root_path, [])
-        
+
         assert result is True
 
     def test_should_not_ignore_regular_dirs(self, tmp_path):
         """Test not ignoring regular directories."""
         root_path = tmp_path
         test_path = root_path / "src" / "components" / "package.json"
-        
+
         result = _should_ignore_path(test_path, root_path, [])
-        
+
         assert result is False
 
     def test_should_ignore_gitignore_patterns(self, tmp_path):
         """Test ignoring paths based on gitignore patterns."""
         root_path = tmp_path
         gitignore_patterns = ["*.log", "temp/", "build/*"]
-        
+
         # Test file pattern
         log_file = root_path / "debug.log"
         result = _should_ignore_path(log_file, root_path, gitignore_patterns)
         assert result is True
-        
+
         # Test directory pattern
         temp_file = root_path / "temp" / "file.txt"
         result = _should_ignore_path(temp_file, root_path, gitignore_patterns)
         assert result is True
-        
+
         # Test glob pattern
         build_file = root_path / "build" / "output.js"
         result = _should_ignore_path(build_file, root_path, gitignore_patterns)
@@ -969,12 +969,12 @@ class TestShouldIgnorePath:
         """Test not ignoring paths that don't match gitignore patterns."""
         root_path = tmp_path
         gitignore_patterns = ["*.log", "temp/"]
-        
+
         # Test non-matching file
         js_file = root_path / "index.js"
         result = _should_ignore_path(js_file, root_path, gitignore_patterns)
         assert result is False
-        
+
         # Test non-matching directory
         src_file = root_path / "src" / "file.txt"
         result = _should_ignore_path(src_file, root_path, gitignore_patterns)
@@ -984,7 +984,7 @@ class TestShouldIgnorePath:
         """Test ignoring nested paths correctly."""
         root_path = tmp_path
         gitignore_patterns = ["*/node_modules/*"]
-        
+
         # Test deeply nested node_modules
         nested_file = root_path / "project" / "node_modules" / "package" / "index.js"
         result = _should_ignore_path(nested_file, root_path, gitignore_patterns)
@@ -1004,9 +1004,9 @@ class TestGetDetectedFilesWithIgnore:
         (tmp_path / ".venv" / "package.json").write_text('{"version": "3.0.0"}')
         (tmp_path / "src").mkdir()
         (tmp_path / "src" / "package.json").write_text('{"version": "4.0.0"}')
-        
+
         files = get_detected_files(str(tmp_path))
-        
+
         # Should find root and src package.json, but not venv ones
         assert len(files) == 2
         file_paths = [str(f.relative_to(tmp_path)) for f in files]
@@ -1023,12 +1023,12 @@ class TestGetDetectedFilesWithIgnore:
         (tmp_path / "temp" / "package.json").write_text('{"version": "2.0.0"}')
         (tmp_path / "src").mkdir()
         (tmp_path / "src" / "package.json").write_text('{"version": "3.0.0"}')
-        
+
         # Create .gitignore
         (tmp_path / ".gitignore").write_text("temp/\n*.log\n")
-        
+
         files = get_detected_files(str(tmp_path))
-        
+
         # Should find root and src package.json, but not temp ones
         assert len(files) == 2
         file_paths = [str(f.relative_to(tmp_path)) for f in files]
@@ -1042,9 +1042,9 @@ class TestGetDetectedFilesWithIgnore:
         (tmp_path / "package.json").write_text('{"version": "1.0.0"}')
         (tmp_path / "src").mkdir()
         (tmp_path / "src" / "package.json").write_text('{"version": "2.0.0"}')
-        
+
         files = get_detected_files(str(tmp_path))
-        
+
         # Should find both files
         assert len(files) == 2
         file_paths = [str(f.relative_to(tmp_path)) for f in files]
@@ -1056,33 +1056,33 @@ class TestGetDetectedFilesWithIgnore:
         # Create complex test structure
         (tmp_path / "package.json").write_text('{"version": "1.0.0"}')
         (tmp_path / "pyproject.toml").write_text('[project]\nversion = "2.0.0"')
-        
+
         # Create directories to ignore
         (tmp_path / "node_modules").mkdir()
         (tmp_path / "node_modules" / "package.json").write_text('{"version": "ignored"}')
         (tmp_path / "venv").mkdir()
         (tmp_path / "venv" / "pyproject.toml").write_text('[project]\nversion = "ignored"')
-        
+
         # Create regular directories
         (tmp_path / "src").mkdir()
         (tmp_path / "src" / "package.json").write_text('{"version": "3.0.0"}')
         (tmp_path / "tests").mkdir()
         (tmp_path / "tests" / "VERSION").write_text("4.0.0")
-        
+
         # Create .gitignore
         (tmp_path / ".gitignore").write_text("*.log\nbuild/\n")
-        
+
         files = get_detected_files(str(tmp_path))
-        
+
         # Should find root package.json, pyproject.toml, src package.json, and tests VERSION
         assert len(files) == 4
         file_paths = [str(f.relative_to(tmp_path)) for f in files]
-        
+
         # Expected files
         expected_files = ["package.json", "pyproject.toml", "src/package.json", "tests/VERSION"]
         for expected in expected_files:
             assert expected in file_paths
-        
+
         # Should not include ignored files
         assert "node_modules/package.json" not in file_paths
         assert "venv/pyproject.toml" not in file_paths
@@ -1095,20 +1095,20 @@ class TestVersionChoiceStr:
         """Test VersionChoice.__str__ when next_version is automatically set."""
         prev_version = Version(1, 2, 3)
         choice = VersionChoice(bump="patch", previous_version=prev_version)
-        
+
         result = str(choice)
-        
+
         assert result == "patch (1.2.4)"  # patch increments the patch version
 
     def test_version_choice_str_without_next_version(self):
         """Test VersionChoice.__str__ when next_version is manually removed."""
         prev_version = Version(1, 2, 3)
         choice = VersionChoice(bump="patch", previous_version=prev_version)
-        
+
         # Manually delete next_version to test the fallback
         del choice.next_version
         result = str(choice)
-        
+
         assert result == "patch"
 
 
@@ -1119,19 +1119,19 @@ class TestGetVersionFromFilesErrorHandling:
         """Test get_version_from_setup_py function."""
         setup_py = tmp_path / "setup.py"
         setup_py.write_text("from setuptools import setup\nsetup(version='1.2.3')")
-        
+
         result = get_version_from_setup_py(tmp_path)
-        
+
         assert result == Version(1, 2, 3)
 
     def test_get_version_from_cargo_toml_decode_error(self, tmp_path):
         """Test get_version_from_cargo_toml with TOML decode error."""
         cargo_toml = tmp_path / "Cargo.toml"
         cargo_toml.write_text('[package\nversion = "1.0.0"')  # Invalid TOML
-        
+
         with patch("tgit.version.console.print") as mock_print:
             result = get_version_from_cargo_toml(tmp_path)
-            
+
             assert result is None
             mock_print.assert_called()
 
@@ -1142,7 +1142,7 @@ class TestGetVersionFromFilesErrorHandling:
             patch("tgit.version.console.print") as mock_print,
         ):
             result = get_version_from_cargo_toml(tmp_path)
-            
+
             assert result is None
             mock_print.assert_called()
 
@@ -1150,10 +1150,10 @@ class TestGetVersionFromFilesErrorHandling:
         """Test get_version_from_cargo_toml with missing package table."""
         cargo_toml = tmp_path / "Cargo.toml"
         cargo_toml.write_text('[dependencies]\nserde = "1.0"')  # No package table
-        
+
         with patch("tgit.version.console.print") as mock_print:
             result = get_version_from_cargo_toml(tmp_path)
-            
+
             assert result is None
             mock_print.assert_called()
 
@@ -1161,10 +1161,10 @@ class TestGetVersionFromFilesErrorHandling:
         """Test get_version_from_cargo_toml with invalid package table."""
         cargo_toml = tmp_path / "Cargo.toml"
         cargo_toml.write_text('package = "not a table"')  # Invalid package
-        
+
         with patch("tgit.version.console.print") as mock_print:
             result = get_version_from_cargo_toml(tmp_path)
-            
+
             assert result is None
             mock_print.assert_called()
 
@@ -1172,10 +1172,10 @@ class TestGetVersionFromFilesErrorHandling:
         """Test get_version_from_cargo_toml with missing version in package table."""
         cargo_toml = tmp_path / "Cargo.toml"
         cargo_toml.write_text('[package]\nname = "test"')  # No version
-        
+
         with patch("tgit.version.console.print") as mock_print:
             result = get_version_from_cargo_toml(tmp_path)
-            
+
             assert result is None
             mock_print.assert_called()
 
@@ -1183,10 +1183,10 @@ class TestGetVersionFromFilesErrorHandling:
         """Test get_version_from_cargo_toml with empty version string."""
         cargo_toml = tmp_path / "Cargo.toml"
         cargo_toml.write_text('[package]\nversion = ""')  # Empty version
-        
+
         with patch("tgit.version.console.print") as mock_print:
             result = get_version_from_cargo_toml(tmp_path)
-            
+
             assert result is None
             mock_print.assert_called()
 
@@ -1194,21 +1194,19 @@ class TestGetVersionFromFilesErrorHandling:
         """Test get_version_from_version_file function."""
         version_file = tmp_path / "VERSION"
         version_file.write_text("2.1.0")
-        
+
         result = get_version_from_version_file(tmp_path)
-        
+
         assert result == Version(2, 1, 0)
 
     def test_get_version_from_version_txt(self, tmp_path):
         """Test get_version_from_version_txt function."""
         version_file = tmp_path / "VERSION.txt"
         version_file.write_text("3.0.1")
-        
+
         result = get_version_from_version_txt(tmp_path)
-        
+
         assert result == Version(3, 0, 1)
-
-
 
 
 class TestGetCurrentVersion:
@@ -1220,9 +1218,9 @@ class TestGetCurrentVersion:
         """Test get_current_version with verbose output."""
         mock_version = Version(1, 2, 3)
         mock_get_prev.return_value = mock_version
-        
+
         result = get_current_version(".", verbose=1)
-        
+
         assert result == mock_version
         mock_console.print.assert_called()
         mock_console.status.assert_called()
@@ -1233,9 +1231,9 @@ class TestGetCurrentVersion:
         """Test get_current_version without verbose output."""
         mock_version = Version(2, 0, 0)
         mock_get_prev.return_value = mock_version
-        
+
         result = get_current_version(".", verbose=0)
-        
+
         assert result == mock_version
         mock_console.status.assert_called()
 
@@ -1246,10 +1244,10 @@ class TestUpdateCargoTomlVersionErrorHandling:
     def test_update_cargo_toml_version_file_not_exists(self, tmp_path):
         """Test update_cargo_toml_version when file doesn't exist."""
         non_existent_file = tmp_path / "nonexistent" / "Cargo.toml"
-        
+
         # This should just return without doing anything when file doesn't exist
         update_cargo_toml_version(str(non_existent_file), "1.0.0", verbose=0)
-        
+
         # Should not raise any exception
 
     def test_update_cargo_toml_version_complex_package_section(self, tmp_path):
@@ -1265,12 +1263,12 @@ description = "A package"
 serde = "1.0"
 """
         cargo_toml.write_text(content)
-        
+
         # Mock the confirmation to avoid interactive prompt
         with patch("tgit.version.questionary.confirm") as mock_confirm:
             mock_confirm.return_value.ask.return_value = True
             update_cargo_toml_version(str(cargo_toml), "1.2.3", verbose=0, show_diff=False)
-        
+
         updated_content = cargo_toml.read_text()
         assert 'version = "1.2.3"' in updated_content
         assert 'name = "my_package"' in updated_content

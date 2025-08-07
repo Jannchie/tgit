@@ -18,9 +18,7 @@ class TestRunCommand:
         process_mock.communicate.return_value = (b"output", b"")
         process_mock.returncode = 0
         settings = TGitSettings(
-            commit=CommitSettings(emoji=False, types=[]),
-            api_key="", api_url="", model="",
-            show_command=False, skip_confirm=False
+            commit=CommitSettings(emoji=False, types=[]), api_key="", api_url="", model="", show_command=False, skip_confirm=False
         )
 
         # Act
@@ -37,9 +35,7 @@ class TestRunCommand:
         # Arrange
         mock_confirm.return_value.ask.return_value = False
         settings = TGitSettings(
-            commit=CommitSettings(emoji=False, types=[]),
-            api_key="", api_url="", model="",
-            show_command=False, skip_confirm=False
+            commit=CommitSettings(emoji=False, types=[]), api_key="", api_url="", model="", show_command=False, skip_confirm=False
         )
 
         # Act
@@ -55,9 +51,7 @@ class TestRunCommand:
         """Test run_command when skip_confirm is True."""
         # Arrange
         settings = TGitSettings(
-            commit=CommitSettings(emoji=False, types=[]),
-            api_key="", api_url="", model="",
-            show_command=False, skip_confirm=True
+            commit=CommitSettings(emoji=False, types=[]), api_key="", api_url="", model="", show_command=False, skip_confirm=True
         )
         process_mock = mock_popen.return_value
         process_mock.communicate.return_value = (b"output", b"")
@@ -77,9 +71,7 @@ class TestRunCommand:
         """Test run_command when show_command is True."""
         # Arrange
         settings = TGitSettings(
-            commit=CommitSettings(emoji=False, types=[]),
-            api_key="", api_url="", model="",
-            show_command=True, skip_confirm=False
+            commit=CommitSettings(emoji=False, types=[]), api_key="", api_url="", model="", show_command=True, skip_confirm=False
         )
         mock_confirm.return_value.ask.return_value = True
         process_mock = mock_popen.return_value
@@ -101,9 +93,7 @@ class TestRunCommand:
         """Test run_command error handling."""
         # Arrange
         settings = TGitSettings(
-            commit=CommitSettings(emoji=False, types=[]),
-            api_key="", api_url="", model="",
-            show_command=False, skip_confirm=True
+            commit=CommitSettings(emoji=False, types=[]), api_key="", api_url="", model="", show_command=False, skip_confirm=True
         )
         mock_confirm.return_value.ask.return_value = True
         process_mock = mock_popen.return_value
@@ -122,9 +112,7 @@ class TestRunCommand:
         """Test run_command with multiple commands."""
         # Arrange
         settings = TGitSettings(
-            commit=CommitSettings(emoji=False, types=[]),
-            api_key="", api_url="", model="",
-            show_command=False, skip_confirm=True
+            commit=CommitSettings(emoji=False, types=[]), api_key="", api_url="", model="", show_command=False, skip_confirm=True
         )
         process_mock = mock_popen.return_value
         process_mock.communicate.return_value = (b"output", b"")
