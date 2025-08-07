@@ -1,3 +1,4 @@
+import fnmatch
 import json
 import os
 import re
@@ -284,20 +285,91 @@ def get_default_bump_by_commits_dict(commits_by_type: dict[str, list[git.Commit]
     return "patch"
 
 
+def _parse_gitignore(gitignore_path: Path) -> list[str]:
+    """Parse gitignore file and return list of patterns."""
+    if not gitignore_path.exists():
+        return []
+
+    patterns = []
+    try:
+        with gitignore_path.open(encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if line and not line.startswith("#"):
+                    patterns.append(line)
+    except (OSError, UnicodeDecodeError):
+        pass
+    return patterns
+
+
+def _should_ignore_path(path: Path, root_path: Path, gitignore_patterns: list[str]) -> bool:
+    """Check if a path should be ignored based on gitignore patterns and common virtual env dirs."""
+    # Common virtual environment and build directories to ignore
+    ignore_dirs = {
+        "venv", ".venv", "env", ".env", "virtualenv", ".virtualenv",
+        "node_modules", "__pycache__", ".pytest_cache", ".tox", ".nox",
+        "dist", "build", ".git", ".svn", ".hg", ".bzr",
+        "site-packages", ".mypy_cache", ".coverage", "htmlcov",
+    }
+
+    relative_path = path.relative_to(root_path)
+    path_parts = relative_path.parts
+
+    # Check if any part of the path matches ignored directories
+    for part in path_parts:
+        if part in ignore_dirs:
+            return True
+
+    # Check against gitignore patterns
+    relative_str = str(relative_path)
+    for orig_pattern in gitignore_patterns:
+        pattern = orig_pattern
+        # Handle directory patterns (ending with /)
+        if pattern.endswith("/"):
+            pattern = pattern[:-1]
+            if fnmatch.fnmatch(relative_str, pattern) or any(fnmatch.fnmatch(part, pattern) for part in path_parts):
+                return True
+        else:
+            # Handle file and directory patterns
+            if fnmatch.fnmatch(relative_str, pattern) or fnmatch.fnmatch(path.name, pattern):
+                return True
+            # Also check if any parent directory matches the pattern
+            for i, _part in enumerate(path_parts[:-1]):
+                parent_path = "/".join(path_parts[:i+1])
+                if fnmatch.fnmatch(parent_path, pattern):
+                    return True
+
+    return False
+
+
 def get_detected_files(path: str) -> list[Path]:
     """获取递归模式下检测到的所有版本文件。"""
     current_path = Path(path).resolve()
     filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts"]
     detected_files: list[Path] = []
 
-    # 需要忽略 node_modules 目录
+    # Parse gitignore patterns
+    gitignore_patterns = _parse_gitignore(current_path / ".gitignore")
+
     for root, dirs, files in os.walk(current_path):
-        if "node_modules" in dirs:
-            dirs.remove("node_modules")
+        root_path = Path(root)
+
+        # Filter out ignored directories to prevent descending into them
+        dirs_to_remove = []
+        for dir_name in dirs:
+            dir_path = root_path / dir_name
+            if _should_ignore_path(dir_path, current_path, gitignore_patterns):
+                dirs_to_remove.append(dir_name)
+
+        for dir_name in dirs_to_remove:
+            dirs.remove(dir_name)
+
+        # Check files
         for file in files:
             if file in filenames:
-                file_path = Path(root) / file
-                detected_files.append(file_path)
+                file_path = root_path / file
+                if not _should_ignore_path(file_path, current_path, gitignore_patterns):
+                    detected_files.append(file_path)
 
     return detected_files
 

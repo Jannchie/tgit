@@ -11,7 +11,9 @@ from tgit.version import (
     _handle_explicit_version_args,
     _handle_interactive_version_selection,
     _has_explicit_version_args,
+    _parse_gitignore,
     _prompt_for_version_choice,
+    _should_ignore_path,
     bump_version,
     get_default_bump_by_commits_dict,
     get_detected_files,
@@ -822,3 +824,264 @@ members = ["other-crate"]
         
         # Should not raise an error
         update_cargo_toml_version(non_existent_file, "1.0.0", 0, show_diff=False)
+
+
+class TestParseGitignore:
+    """Test cases for _parse_gitignore function."""
+
+    def test_parse_gitignore_existing_file(self, tmp_path):
+        """Test parsing an existing gitignore file."""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text("*.log\nnode_modules/\n# This is a comment\nvenv\n\n")
+        
+        patterns = _parse_gitignore(gitignore)
+        
+        expected = ["*.log", "node_modules/", "venv"]
+        assert patterns == expected
+
+    def test_parse_gitignore_missing_file(self, tmp_path):
+        """Test parsing a non-existent gitignore file."""
+        gitignore = tmp_path / ".gitignore"
+        
+        patterns = _parse_gitignore(gitignore)
+        
+        assert patterns == []
+
+    def test_parse_gitignore_empty_file(self, tmp_path):
+        """Test parsing an empty gitignore file."""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text("")
+        
+        patterns = _parse_gitignore(gitignore)
+        
+        assert patterns == []
+
+    def test_parse_gitignore_only_comments(self, tmp_path):
+        """Test parsing gitignore file with only comments."""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text("# Comment 1\n# Comment 2\n")
+        
+        patterns = _parse_gitignore(gitignore)
+        
+        assert patterns == []
+
+    def test_parse_gitignore_mixed_content(self, tmp_path):
+        """Test parsing gitignore file with mixed content."""
+        gitignore = tmp_path / ".gitignore"
+        gitignore.write_text("""# Node
+node_modules/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.venv/
+""")
+        
+        patterns = _parse_gitignore(gitignore)
+        
+        expected = ["node_modules/", "*.log", "__pycache__/", "*.pyc", "venv/", ".venv/"]
+        assert patterns == expected
+
+    def test_parse_gitignore_unicode_error(self, tmp_path):
+        """Test parsing gitignore file with unicode decode error."""
+        gitignore = tmp_path / ".gitignore"
+        
+        # Write binary data that would cause UnicodeDecodeError
+        with gitignore.open("wb") as f:
+            f.write(b"\xff\xfe*.log\n")
+        
+        patterns = _parse_gitignore(gitignore)
+        
+        # Should handle the error gracefully and return empty list
+        assert patterns == []
+
+
+class TestShouldIgnorePath:
+    """Test cases for _should_ignore_path function."""
+
+    def test_should_ignore_virtual_env_dirs(self, tmp_path):
+        """Test ignoring common virtual environment directories."""
+        root_path = tmp_path
+        
+        # Test various virtual env directory names
+        venv_dirs = ["venv", ".venv", "env", ".env", "virtualenv", ".virtualenv"]
+        
+        for venv_dir in venv_dirs:
+            test_path = root_path / venv_dir / "package.json"
+            result = _should_ignore_path(test_path, root_path, [])
+            assert result is True, f"Should ignore {venv_dir}"
+
+    def test_should_ignore_build_dirs(self, tmp_path):
+        """Test ignoring common build directories."""
+        root_path = tmp_path
+        
+        build_dirs = ["__pycache__", "node_modules", "dist", "build", ".git"]
+        
+        for build_dir in build_dirs:
+            test_path = root_path / build_dir / "some_file.txt"
+            result = _should_ignore_path(test_path, root_path, [])
+            assert result is True, f"Should ignore {build_dir}"
+
+    def test_should_ignore_site_packages(self, tmp_path):
+        """Test ignoring site-packages directory."""
+        root_path = tmp_path
+        test_path = root_path / "lib" / "python3.9" / "site-packages" / "package.json"
+        
+        result = _should_ignore_path(test_path, root_path, [])
+        
+        assert result is True
+
+    def test_should_not_ignore_regular_dirs(self, tmp_path):
+        """Test not ignoring regular directories."""
+        root_path = tmp_path
+        test_path = root_path / "src" / "components" / "package.json"
+        
+        result = _should_ignore_path(test_path, root_path, [])
+        
+        assert result is False
+
+    def test_should_ignore_gitignore_patterns(self, tmp_path):
+        """Test ignoring paths based on gitignore patterns."""
+        root_path = tmp_path
+        gitignore_patterns = ["*.log", "temp/", "build/*"]
+        
+        # Test file pattern
+        log_file = root_path / "debug.log"
+        result = _should_ignore_path(log_file, root_path, gitignore_patterns)
+        assert result is True
+        
+        # Test directory pattern
+        temp_file = root_path / "temp" / "file.txt"
+        result = _should_ignore_path(temp_file, root_path, gitignore_patterns)
+        assert result is True
+        
+        # Test glob pattern
+        build_file = root_path / "build" / "output.js"
+        result = _should_ignore_path(build_file, root_path, gitignore_patterns)
+        assert result is True
+
+    def test_should_not_ignore_non_matching_patterns(self, tmp_path):
+        """Test not ignoring paths that don't match gitignore patterns."""
+        root_path = tmp_path
+        gitignore_patterns = ["*.log", "temp/"]
+        
+        # Test non-matching file
+        js_file = root_path / "index.js"
+        result = _should_ignore_path(js_file, root_path, gitignore_patterns)
+        assert result is False
+        
+        # Test non-matching directory
+        src_file = root_path / "src" / "file.txt"
+        result = _should_ignore_path(src_file, root_path, gitignore_patterns)
+        assert result is False
+
+    def test_should_ignore_nested_paths(self, tmp_path):
+        """Test ignoring nested paths correctly."""
+        root_path = tmp_path
+        gitignore_patterns = ["*/node_modules/*"]
+        
+        # Test deeply nested node_modules
+        nested_file = root_path / "project" / "node_modules" / "package" / "index.js"
+        result = _should_ignore_path(nested_file, root_path, gitignore_patterns)
+        assert result is True
+
+
+class TestGetDetectedFilesWithIgnore:
+    """Test cases for the modified get_detected_files function with ignore functionality."""
+
+    def test_get_detected_files_ignores_venv(self, tmp_path):
+        """Test that get_detected_files ignores virtual environment directories."""
+        # Create test structure
+        (tmp_path / "package.json").write_text('{"version": "1.0.0"}')
+        (tmp_path / "venv").mkdir()
+        (tmp_path / "venv" / "package.json").write_text('{"version": "2.0.0"}')
+        (tmp_path / ".venv").mkdir()
+        (tmp_path / ".venv" / "package.json").write_text('{"version": "3.0.0"}')
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "package.json").write_text('{"version": "4.0.0"}')
+        
+        files = get_detected_files(str(tmp_path))
+        
+        # Should find root and src package.json, but not venv ones
+        assert len(files) == 2
+        file_paths = [str(f.relative_to(tmp_path)) for f in files]
+        assert "package.json" in file_paths
+        assert "src/package.json" in file_paths
+        assert "venv/package.json" not in file_paths
+        assert ".venv/package.json" not in file_paths
+
+    def test_get_detected_files_respects_gitignore(self, tmp_path):
+        """Test that get_detected_files respects .gitignore patterns."""
+        # Create test structure
+        (tmp_path / "package.json").write_text('{"version": "1.0.0"}')
+        (tmp_path / "temp").mkdir()
+        (tmp_path / "temp" / "package.json").write_text('{"version": "2.0.0"}')
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "package.json").write_text('{"version": "3.0.0"}')
+        
+        # Create .gitignore
+        (tmp_path / ".gitignore").write_text("temp/\n*.log\n")
+        
+        files = get_detected_files(str(tmp_path))
+        
+        # Should find root and src package.json, but not temp ones
+        assert len(files) == 2
+        file_paths = [str(f.relative_to(tmp_path)) for f in files]
+        assert "package.json" in file_paths
+        assert "src/package.json" in file_paths
+        assert "temp/package.json" not in file_paths
+
+    def test_get_detected_files_no_gitignore(self, tmp_path):
+        """Test get_detected_files when no .gitignore exists."""
+        # Create test structure
+        (tmp_path / "package.json").write_text('{"version": "1.0.0"}')
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "package.json").write_text('{"version": "2.0.0"}')
+        
+        files = get_detected_files(str(tmp_path))
+        
+        # Should find both files
+        assert len(files) == 2
+        file_paths = [str(f.relative_to(tmp_path)) for f in files]
+        assert "package.json" in file_paths
+        assert "src/package.json" in file_paths
+
+    def test_get_detected_files_complex_structure(self, tmp_path):
+        """Test get_detected_files with a complex directory structure."""
+        # Create complex test structure
+        (tmp_path / "package.json").write_text('{"version": "1.0.0"}')
+        (tmp_path / "pyproject.toml").write_text('[project]\nversion = "2.0.0"')
+        
+        # Create directories to ignore
+        (tmp_path / "node_modules").mkdir()
+        (tmp_path / "node_modules" / "package.json").write_text('{"version": "ignored"}')
+        (tmp_path / "venv").mkdir()
+        (tmp_path / "venv" / "pyproject.toml").write_text('[project]\nversion = "ignored"')
+        
+        # Create regular directories
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "package.json").write_text('{"version": "3.0.0"}')
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "tests" / "VERSION").write_text("4.0.0")
+        
+        # Create .gitignore
+        (tmp_path / ".gitignore").write_text("*.log\nbuild/\n")
+        
+        files = get_detected_files(str(tmp_path))
+        
+        # Should find root package.json, pyproject.toml, src package.json, and tests VERSION
+        assert len(files) == 4
+        file_paths = [str(f.relative_to(tmp_path)) for f in files]
+        
+        # Expected files
+        expected_files = ["package.json", "pyproject.toml", "src/package.json", "tests/VERSION"]
+        for expected in expected_files:
+            assert expected in file_paths
+        
+        # Should not include ignored files
+        assert "node_modules/package.json" not in file_paths
+        assert "venv/pyproject.toml" not in file_paths
