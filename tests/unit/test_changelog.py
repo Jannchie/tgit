@@ -41,6 +41,8 @@ from tgit.changelog import (
     commit_pattern,
     changelog,
 )
+from rich.console import Console
+from rich.text import Text
 
 
 class TestVersionSegment:
@@ -83,6 +85,45 @@ class TestHeading:
 
         assert hasattr(heading, "text")
         mock_context.enter_style.assert_called_once_with("markdown.h1")
+
+    def test_heading_rich_console_h1(self):
+        """Test Heading.__rich_console__ method for h1."""
+        heading = Heading("h1")
+        heading.text = Text("Main Title")
+        console = Console()
+        options = Mock()
+        
+        result = list(heading.__rich_console__(console, options))
+        
+        assert len(result) == 3  # Empty line, title, empty line
+        assert result[0].plain == ""  # Empty line before
+        assert result[1].plain == "# Main Title"
+        assert result[2].plain == ""  # Empty line after
+
+    def test_heading_rich_console_h2(self):
+        """Test Heading.__rich_console__ method for h2."""
+        heading = Heading("h2")
+        heading.text = Text("Subtitle")
+        console = Console()
+        options = Mock()
+        
+        result = list(heading.__rich_console__(console, options))
+        
+        assert len(result) == 2  # Empty line, title
+        assert result[0].plain == ""  # Empty line before
+        assert result[1].plain == "## Subtitle"
+
+    def test_heading_rich_console_h3(self):
+        """Test Heading.__rich_console__ method for h3."""
+        heading = Heading("h3")
+        heading.text = Text("Sub-subtitle")
+        console = Console()
+        options = Mock()
+        
+        result = list(heading.__rich_console__(console, options))
+        
+        assert len(result) == 1  # Only title
+        assert result[0].plain == "### Sub-subtitle"
 
 
 class TestAuthor:
@@ -188,6 +229,42 @@ class TestTGITCommit:
         assert "feat: add new feature" in str_repr
         assert "2023-01-01 12:00:00" in str_repr
         assert "John Doe <john@example.com>" in str_repr
+
+    def test_tgit_commit_with_bytes_message(self):
+        """Test TGITCommit with bytes commit message."""
+        mock_repo = Mock()
+        mock_repo.git.rev_parse.return_value = "abc1234"
+
+        mock_commit = Mock()
+        mock_commit.author.name = "John Doe"
+        mock_commit.author.email = "john@example.com"
+        mock_commit.committed_datetime = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+        mock_commit.message = b"feat: add new feature"  # bytes message
+        mock_commit.hexsha = "abc1234567890"
+
+        message_dict = {"emoji": "✨", "type": "feat", "scope": None, "description": "add new feature", "breaking": None}
+
+        tgit_commit = TGITCommit(mock_repo, mock_commit, message_dict)
+        assert tgit_commit.type == "feat"
+        assert tgit_commit.description == "add new feature"
+
+    def test_tgit_commit_with_non_string_message(self):
+        """Test TGITCommit with non-string, non-bytes commit message."""
+        mock_repo = Mock()
+        mock_repo.git.rev_parse.return_value = "abc1234"
+
+        mock_commit = Mock()
+        mock_commit.author.name = "John Doe"
+        mock_commit.author.email = "john@example.com"
+        mock_commit.committed_datetime = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+        mock_commit.message = 12345  # Non-string, non-bytes message
+        mock_commit.hexsha = "abc1234567890"
+
+        message_dict = {"emoji": "✨", "type": "feat", "scope": None, "description": "add new feature", "breaking": None}
+
+        tgit_commit = TGITCommit(mock_repo, mock_commit, message_dict)
+        assert tgit_commit.type == "feat"
+        assert tgit_commit.description == "add new feature"
 
 
 class TestChangelogArgs:
@@ -913,3 +990,168 @@ class TestHandleChangelog:
 
         mock_prepare.assert_called_once_with(mock_repo_instance, None, None)
         mock_print.assert_called_once_with("[yellow]No changes found, nothing to output.[/yellow]")
+
+
+class TestPrepareChangelogSegments:
+    """Test prepare_changelog_segments function."""
+
+    @patch("tgit.changelog.get_latest_git_tag")
+    @patch("tgit.changelog.get_first_commit_hash")
+    def test_prepare_changelog_segments_no_tags(self, mock_first_commit, mock_get_latest_tag):
+        """Test prepare_changelog_segments when repository has no tags."""
+        mock_repo = Mock()
+        mock_repo.tags = []
+        mock_first_commit.return_value = "abc123"
+        mock_get_latest_tag.return_value = None
+
+        with patch("tgit.changelog.print") as mock_print:
+            result = prepare_changelog_segments(mock_repo)
+            
+            assert result == []
+            mock_print.assert_called_once_with("[yellow]No tags found in the repository.[/yellow]")
+
+    @patch("tgit.changelog.get_latest_git_tag")
+    @patch("tgit.changelog.get_first_commit_hash")
+    def test_prepare_changelog_segments_with_tags(self, mock_first_commit, mock_get_latest_tag):
+        """Test prepare_changelog_segments with tags in repository."""
+        mock_repo = Mock()
+        
+        # Create mock tags
+        mock_tag1 = Mock()
+        mock_tag1.name = "v1.0.0"
+        mock_tag1.commit.hexsha = "def456"
+        mock_tag1.commit.committed_datetime = datetime(2023, 1, 1, tzinfo=UTC)
+        
+        mock_tag2 = Mock()
+        mock_tag2.name = "v2.0.0"
+        mock_tag2.commit.hexsha = "ghi789"
+        mock_tag2.commit.committed_datetime = datetime(2023, 2, 1, tzinfo=UTC)
+        
+        mock_repo.tags = [mock_tag1, mock_tag2]
+        mock_first_commit.return_value = "abc123"
+        mock_get_latest_tag.return_value = "v2.0.0"
+
+        result = prepare_changelog_segments(mock_repo)
+        
+        assert len(result) >= 1
+        # Should have version segments created
+
+    @patch("tgit.changelog.get_latest_git_tag")
+    @patch("tgit.changelog.get_first_commit_hash")
+    def test_prepare_changelog_segments_with_current_tag(self, mock_first_commit, mock_get_latest_tag):
+        """Test prepare_changelog_segments with current tag specified."""
+        mock_repo = Mock()
+        
+        mock_tag1 = Mock()
+        mock_tag1.name = "v1.0.0"
+        mock_tag1.commit.hexsha = "def456"
+        mock_tag1.commit.committed_datetime = datetime(2023, 1, 1, tzinfo=UTC)
+        
+        mock_repo.tags = [mock_tag1]
+        mock_first_commit.return_value = "abc123"
+        mock_get_latest_tag.return_value = "v1.0.0"
+
+        result = prepare_changelog_segments(mock_repo, current_tag="v2.0.0")
+        
+        assert len(result) >= 1
+
+
+class TestRangeSegments:
+    """Test _get_range_segments function."""
+
+    @patch("tgit.changelog.get_git_commits_range")
+    @patch("tgit.changelog.prepare_changelog_segments")
+    def test_get_range_segments_basic(self, mock_prepare, mock_range):
+        """Test _get_range_segments basic functionality."""
+        mock_repo = Mock()
+        mock_range.return_value = ("v1.0.0", "v2.0.0")
+        
+        # Create mock segments
+        segment1 = VersionSegment(from_hash="abc123", to_hash="def456", from_name="v1.0.0", to_name="v1.1.0")
+        segment2 = VersionSegment(from_hash="def456", to_hash="ghi789", from_name="v1.1.0", to_name="v2.0.0")
+        mock_prepare.return_value = [segment1, segment2]
+        
+        result = _get_range_segments(mock_repo, "v1.0.0", "v2.0.0")
+        
+        assert len(result) >= 0
+
+
+class TestGenerateChangelogsFromSegments:
+    """Test _generate_changelogs_from_segments function."""
+
+    def test_generate_changelogs_from_segments_empty(self):
+        """Test _generate_changelogs_from_segments with empty segments."""
+        mock_repo = Mock()
+        
+        result = _generate_changelogs_from_segments(mock_repo, [])
+        
+        assert result == ""
+
+    @patch("tgit.changelog._process_commits")
+    @patch("tgit.changelog.group_commits_by_type")
+    @patch("tgit.changelog.generate_changelog")
+    @patch("tgit.changelog._get_remote_uri_safe")
+    def test_generate_changelogs_from_segments_with_segments(self, mock_uri_safe, mock_generate, mock_group, mock_process):
+        """Test _generate_changelogs_from_segments with actual segments."""
+        mock_repo = Mock()
+        mock_repo.iter_commits.return_value = [Mock(), Mock()]
+        
+        mock_process.return_value = [Mock(), Mock()]
+        mock_group.return_value = {"feat": [Mock()]}
+        mock_generate.return_value = "## v1.1.0\n\n### Features\n\n- New feature\n\n"
+        mock_uri_safe.return_value = "https://github.com/user/repo"
+        
+        segment = VersionSegment(from_hash="abc123", to_hash="def456", from_name="v1.0.0", to_name="v1.1.0")
+        
+        result = _generate_changelogs_from_segments(mock_repo, [segment])
+        
+        assert "v1.1.0" in result
+
+
+class TestGetRemoteUriSafe:
+    """Test _get_remote_uri_safe function."""
+
+    def test_get_remote_uri_safe_success(self):
+        """Test _get_remote_uri_safe when remote URL is available."""
+        mock_repo = Mock()
+        mock_repo.remote.return_value.url = "https://github.com/user/repo.git"
+        
+        with patch("tgit.changelog.get_remote_uri") as mock_get_uri:
+            mock_get_uri.return_value = "https://github.com/user/repo"
+            result = _get_remote_uri_safe(mock_repo)
+            
+            assert result == "https://github.com/user/repo"
+            mock_get_uri.assert_called_once_with("https://github.com/user/repo.git")
+
+    def test_get_remote_uri_safe_value_error(self):
+        """Test _get_remote_uri_safe when ValueError is raised."""
+        mock_repo = Mock()
+        mock_repo.remote.side_effect = ValueError("Origin not found")
+        
+        result = _get_remote_uri_safe(mock_repo)
+        
+        assert result is None
+
+
+class TestGetChangelogByRange:
+    """Test get_changelog_by_range function."""
+
+    @patch("tgit.changelog.get_commits")
+    @patch("tgit.changelog.group_commits_by_type") 
+    @patch("tgit.changelog.generate_changelog")
+    @patch("tgit.changelog.get_remote_uri")
+    def test_get_changelog_by_range_success(self, mock_get_uri, mock_generate, mock_group, mock_commits):
+        """Test get_changelog_by_range successful execution."""
+        mock_repo = Mock()
+        mock_repo.remote.return_value.url = "https://github.com/user/repo.git"
+        mock_commits.return_value = [Mock()]
+        mock_group.return_value = {"feat": [Mock()]}
+        mock_generate.return_value = "changelog content"
+        mock_get_uri.return_value = "https://github.com/user/repo"
+        
+        result = get_changelog_by_range(mock_repo, "v1.0.0", "v2.0.0")
+        
+        assert result == "changelog content"
+        mock_commits.assert_called_once_with(mock_repo, "v1.0.0", "v2.0.0") 
+        mock_group.assert_called_once()
+        mock_generate.assert_called_once()

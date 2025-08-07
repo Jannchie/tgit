@@ -15,6 +15,7 @@ from tgit.version import (
     _prompt_for_version_choice,
     _should_ignore_path,
     bump_version,
+    get_current_version,
     get_default_bump_by_commits_dict,
     get_detected_files,
     get_next_version,
@@ -1085,3 +1086,192 @@ class TestGetDetectedFilesWithIgnore:
         # Should not include ignored files
         assert "node_modules/package.json" not in file_paths
         assert "venv/pyproject.toml" not in file_paths
+
+
+class TestVersionChoiceStr:
+    """Test VersionChoice __str__ method."""
+
+    def test_version_choice_str_with_next_version(self):
+        """Test VersionChoice.__str__ when next_version is automatically set."""
+        prev_version = Version(1, 2, 3)
+        choice = VersionChoice(bump="patch", previous_version=prev_version)
+        
+        result = str(choice)
+        
+        assert result == "patch (1.2.4)"  # patch increments the patch version
+
+    def test_version_choice_str_without_next_version(self):
+        """Test VersionChoice.__str__ when next_version is manually removed."""
+        prev_version = Version(1, 2, 3)
+        choice = VersionChoice(bump="patch", previous_version=prev_version)
+        
+        # Manually delete next_version to test the fallback
+        del choice.next_version
+        result = str(choice)
+        
+        assert result == "patch"
+
+
+class TestGetVersionFromFilesErrorHandling:
+    """Test error handling in version file parsing functions."""
+
+    def test_get_version_from_setup_py(self, tmp_path):
+        """Test get_version_from_setup_py function."""
+        setup_py = tmp_path / "setup.py"
+        setup_py.write_text("from setuptools import setup\nsetup(version='1.2.3')")
+        
+        result = get_version_from_setup_py(tmp_path)
+        
+        assert result == Version(1, 2, 3)
+
+    def test_get_version_from_cargo_toml_decode_error(self, tmp_path):
+        """Test get_version_from_cargo_toml with TOML decode error."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text('[package\nversion = "1.0.0"')  # Invalid TOML
+        
+        with patch("tgit.version.console.print") as mock_print:
+            result = get_version_from_cargo_toml(tmp_path)
+            
+            assert result is None
+            mock_print.assert_called()
+
+    def test_get_version_from_cargo_toml_read_error(self, tmp_path):
+        """Test get_version_from_cargo_toml with file read error."""
+        with (
+            patch("pathlib.Path.read_text", side_effect=OSError("Permission denied")),
+            patch("tgit.version.console.print") as mock_print,
+        ):
+            result = get_version_from_cargo_toml(tmp_path)
+            
+            assert result is None
+            mock_print.assert_called()
+
+    def test_get_version_from_cargo_toml_missing_package_table(self, tmp_path):
+        """Test get_version_from_cargo_toml with missing package table."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text('[dependencies]\nserde = "1.0"')  # No package table
+        
+        with patch("tgit.version.console.print") as mock_print:
+            result = get_version_from_cargo_toml(tmp_path)
+            
+            assert result is None
+            mock_print.assert_called()
+
+    def test_get_version_from_cargo_toml_invalid_package_table(self, tmp_path):
+        """Test get_version_from_cargo_toml with invalid package table."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text('package = "not a table"')  # Invalid package
+        
+        with patch("tgit.version.console.print") as mock_print:
+            result = get_version_from_cargo_toml(tmp_path)
+            
+            assert result is None
+            mock_print.assert_called()
+
+    def test_get_version_from_cargo_toml_missing_version(self, tmp_path):
+        """Test get_version_from_cargo_toml with missing version in package table."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text('[package]\nname = "test"')  # No version
+        
+        with patch("tgit.version.console.print") as mock_print:
+            result = get_version_from_cargo_toml(tmp_path)
+            
+            assert result is None
+            mock_print.assert_called()
+
+    def test_get_version_from_cargo_toml_empty_version(self, tmp_path):
+        """Test get_version_from_cargo_toml with empty version string."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text('[package]\nversion = ""')  # Empty version
+        
+        with patch("tgit.version.console.print") as mock_print:
+            result = get_version_from_cargo_toml(tmp_path)
+            
+            assert result is None
+            mock_print.assert_called()
+
+    def test_get_version_from_version_file(self, tmp_path):
+        """Test get_version_from_version_file function."""
+        version_file = tmp_path / "VERSION"
+        version_file.write_text("2.1.0")
+        
+        result = get_version_from_version_file(tmp_path)
+        
+        assert result == Version(2, 1, 0)
+
+    def test_get_version_from_version_txt(self, tmp_path):
+        """Test get_version_from_version_txt function."""
+        version_file = tmp_path / "VERSION.txt"
+        version_file.write_text("3.0.1")
+        
+        result = get_version_from_version_txt(tmp_path)
+        
+        assert result == Version(3, 0, 1)
+
+
+
+
+class TestGetCurrentVersion:
+    """Test get_current_version function."""
+
+    @patch("tgit.version.get_prev_version")
+    @patch("tgit.version.console")
+    def test_get_current_version_verbose(self, mock_console, mock_get_prev):
+        """Test get_current_version with verbose output."""
+        mock_version = Version(1, 2, 3)
+        mock_get_prev.return_value = mock_version
+        
+        result = get_current_version(".", verbose=1)
+        
+        assert result == mock_version
+        mock_console.print.assert_called()
+        mock_console.status.assert_called()
+
+    @patch("tgit.version.get_prev_version")
+    @patch("tgit.version.console")
+    def test_get_current_version_not_verbose(self, mock_console, mock_get_prev):
+        """Test get_current_version without verbose output."""
+        mock_version = Version(2, 0, 0)
+        mock_get_prev.return_value = mock_version
+        
+        result = get_current_version(".", verbose=0)
+        
+        assert result == mock_version
+        mock_console.status.assert_called()
+
+
+class TestUpdateCargoTomlVersionErrorHandling:
+    """Test update_cargo_toml_version error handling."""
+
+    def test_update_cargo_toml_version_file_not_exists(self, tmp_path):
+        """Test update_cargo_toml_version when file doesn't exist."""
+        non_existent_file = tmp_path / "nonexistent" / "Cargo.toml"
+        
+        # This should just return without doing anything when file doesn't exist
+        update_cargo_toml_version(str(non_existent_file), "1.0.0", verbose=0)
+        
+        # Should not raise any exception
+
+    def test_update_cargo_toml_version_complex_package_section(self, tmp_path):
+        """Test update_cargo_toml_version with complex package section."""
+        cargo_toml = tmp_path / "Cargo.toml"
+        content = """[package]
+name = "my_package"
+version = "0.1.0"
+authors = ["Author <author@example.com>"]
+description = "A package"
+
+[dependencies]
+serde = "1.0"
+"""
+        cargo_toml.write_text(content)
+        
+        # Mock the confirmation to avoid interactive prompt
+        with patch("tgit.version.questionary.confirm") as mock_confirm:
+            mock_confirm.return_value.ask.return_value = True
+            update_cargo_toml_version(str(cargo_toml), "1.2.3", verbose=0, show_diff=False)
+        
+        updated_content = cargo_toml.read_text()
+        assert 'version = "1.2.3"' in updated_content
+        assert 'name = "my_package"' in updated_content
+        assert 'serde = "1.0"' in updated_content
