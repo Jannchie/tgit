@@ -3,6 +3,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from click.testing import CliRunner
+
 from tgit.version import (
     Version,
     VersionArgs,
@@ -17,12 +19,14 @@ from tgit.version import (
     _should_ignore_path,
     bump_version,
     execute_git_commands,
+    format_diff_lines,
     get_current_version,
     get_custom_version,
     get_default_bump_by_commits_dict,
     get_detected_files,
     get_next_version,
     get_pre_release_identifier,
+    get_root_detected_files,
     get_version_from_cargo_toml,
     get_version_from_files,
     get_version_from_git,
@@ -31,8 +35,12 @@ from tgit.version import (
     get_version_from_setup_py,
     get_version_from_version_file,
     get_version_from_version_txt,
+    handle_version,
     show_file_diff,
     update_cargo_toml_version,
+    update_file,
+    update_version_files,
+    update_version_in_file,
     version,
 )
 
@@ -1388,8 +1396,6 @@ class TestBumpVersionErrorHandling:
     @patch("tgit.version.console")
     def test_bump_version_no_version_files(self, mock_console, mock_get_current, mock_get_root_files, mock_get_files):
         """Test handle_version when no version files found."""
-        from tgit.version import handle_version, Version
-
         mock_get_files.return_value = []
         mock_get_root_files.return_value = []
         mock_get_current.return_value = Version.from_str("1.0.0")
@@ -1842,8 +1848,6 @@ class TestCliCommand:
     @patch("tgit.version.handle_version")
     def test_version_command_basic(self, mock_handle_version):
         """Test version command with basic parameters."""
-        from click.testing import CliRunner
-
         runner = CliRunner()
         result = runner.invoke(version, [])
 
@@ -1852,8 +1856,6 @@ class TestCliCommand:
 
     def test_version_command_mutually_exclusive_options(self):
         """Test version command with mutually exclusive options."""
-        from click.testing import CliRunner
-
         runner = CliRunner()
         result = runner.invoke(version, ["--patch", "--minor"])
 
@@ -1863,8 +1865,6 @@ class TestCliCommand:
     @patch("tgit.version.handle_version")
     def test_version_command_all_options(self, mock_handle_version):
         """Test version command with all available options."""
-        from click.testing import CliRunner
-
         runner = CliRunner()
         result = runner.invoke(version, ["--verbose", "--verbose", "--no-commit", "--no-tag", "--no-push", "--recursive", "--patch", "."])
 
@@ -1968,8 +1968,6 @@ version = "2.0.0"
     @patch("tgit.version.console")
     def test_handle_version_no_files_detected(self, mock_console, mock_get_detected_files):
         """Test handle_version when no version files are detected."""
-        from tgit.version import handle_version
-
         # Setup
         mock_get_detected_files.return_value = []
         args = VersionArgs(
@@ -2009,8 +2007,6 @@ version = "2.0.0"
 
     def test_update_file_nonexistent(self, tmp_path):
         """Test update_file with non-existent file."""
-        from tgit.version import update_file
-
         non_existent_file = tmp_path / "nonexistent.txt"
 
         # Should not raise error, just return early
@@ -2032,8 +2028,6 @@ version = "2.0.0"
     @patch("tgit.version.Path.open")
     def test_parse_gitignore_unicode_decode_error(self, mock_open):
         """Test _parse_gitignore with UnicodeDecodeError."""
-        from tgit.version import _parse_gitignore
-
         mock_open.side_effect = UnicodeDecodeError("utf-8", b"", 0, 1, "error")
 
         result = _parse_gitignore(Path("/fake/.gitignore"))
@@ -2043,8 +2037,6 @@ version = "2.0.0"
     @patch("tgit.version.Path.open")
     def test_parse_gitignore_os_error(self, mock_open):
         """Test _parse_gitignore with OSError."""
-        from tgit.version import _parse_gitignore
-
         mock_open.side_effect = OSError("File not accessible")
 
         result = _parse_gitignore(Path("/fake/.gitignore"))
@@ -2053,8 +2045,6 @@ version = "2.0.0"
 
     def test_get_root_detected_files(self, tmp_path):
         """Test get_root_detected_files functionality."""
-        from tgit.version import get_root_detected_files
-
         # Create test files
         package_json = tmp_path / "package.json"
         package_json.write_text('{"version": "1.0.0"}')
@@ -2074,8 +2064,6 @@ version = "2.0.0"
     @patch("tgit.version.console")
     def test_update_version_files_verbose_mode(self, mock_console, mock_get_detected_files, mock_update_version_in_file):
         """Test update_version_files in verbose mode."""
-        from tgit.version import update_version_files
-
         mock_detected_file = Mock()
         mock_detected_file.name = "package.json"
         mock_get_detected_files.return_value = [mock_detected_file]
@@ -2105,8 +2093,6 @@ version = "2.0.0"
 
     def test_update_version_in_file_setup_py(self, tmp_path):
         """Test update_version_in_file with setup.py file."""
-        from tgit.version import update_version_in_file
-
         setup_py = tmp_path / "setup.py"
         setup_py.write_text('version="1.0.0"')
 
@@ -2117,8 +2103,6 @@ version = "2.0.0"
 
     def test_update_version_in_file_build_gradle_kts(self, tmp_path):
         """Test update_version_in_file with build.gradle.kts file."""
-        from tgit.version import update_version_in_file
-
         build_file = tmp_path / "build.gradle.kts"
         build_file.write_text('version = "1.0.0"')
 
@@ -2131,8 +2115,6 @@ version = "2.0.0"
     @patch("tgit.version.sys.exit")
     def test_show_file_diff_user_exits(self, mock_exit, mock_questionary):
         """Test show_file_diff when user chooses to exit."""
-        from tgit.version import show_file_diff
-
         mock_confirm = Mock()
         mock_confirm.ask.return_value = False
         mock_questionary.confirm.return_value = mock_confirm
@@ -2143,8 +2125,6 @@ version = "2.0.0"
 
     def test_format_diff_lines_with_question_mark(self):
         """Test format_diff_lines with question mark lines."""
-        from tgit.version import format_diff_lines
-
         diff = ["? ^^", "- old line", "+ new line"]
         print_lines = {0: "?", 1: "-", 2: "+"}
         diffs = []

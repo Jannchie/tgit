@@ -1186,8 +1186,6 @@ class TestChangelogErrorHandling:
 
     def test_get_remote_uri_safe_basic(self):
         """Test _get_remote_uri_safe basic functionality."""
-        from tgit.changelog import _get_remote_uri_safe
-        
         mock_repo = Mock()
         mock_repo.remote.side_effect = ValueError("No remote found")
         

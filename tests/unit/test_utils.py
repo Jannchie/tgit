@@ -1,9 +1,10 @@
+import json
 import pytest
 from unittest.mock import patch, MagicMock
 import subprocess
 import sys
 
-from tgit.utils import run_command, simple_run_command, get_commit_command, type_emojis
+from tgit.utils import run_command, simple_run_command, get_commit_command, type_emojis, load_workspace_settings
 from tgit.types import TGitSettings, CommitSettings
 
 
@@ -249,9 +250,6 @@ class TestSettingsFileHandling:
 
     def test_load_settings_basic_functionality(self, tmp_path):
         """Test basic settings file loading."""
-        from tgit.utils import load_workspace_settings
-        import json
-        
         # Create .tgit directory and settings.json file
         tgit_dir = tmp_path / ".tgit"
         tgit_dir.mkdir()
