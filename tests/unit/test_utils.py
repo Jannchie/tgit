@@ -255,9 +255,9 @@ class TestSettingsFileHandling:
         tgit_dir.mkdir()
         config_file = tgit_dir / "settings.json"
         config_file.write_text(json.dumps({"apiKey": "test_key", "model": "gpt-4"}))
-        
+
         with patch("tgit.utils.Path.cwd", return_value=tmp_path):
             result = load_workspace_settings()
-            
+
             assert result["apiKey"] == "test_key"
             assert result["model"] == "gpt-4"

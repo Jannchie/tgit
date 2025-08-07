@@ -1160,25 +1160,19 @@ class TestChangelogErrorHandling:
         """Test TGITCommit with bytes message that has encoding issues."""
         mock_repo = Mock()
         mock_repo.git.rev_parse.return_value = "abc1234"
-        
+
         mock_commit = Mock()
         mock_commit.message = "feat: test message"  # Use valid UTF-8 string since bytes handling is in get_commits
         mock_commit.author.name = "Test Author"
         mock_commit.author.email = "test@example.com"
         mock_commit.committed_datetime = Mock()
         mock_commit.hexsha = "abcdef123456"
-        
-        message_dict = {
-            "emoji": "✨",
-            "type": "feat",
-            "scope": None,
-            "description": "test message",
-            "breaking": None
-        }
-        
+
+        message_dict = {"emoji": "✨", "type": "feat", "scope": None, "description": "test message", "breaking": None}
+
         # This should handle the commit creation properly
         tgit_commit = TGITCommit(mock_repo, mock_commit, message_dict)
-        
+
         # Should not raise an exception and should have the correct properties
         assert tgit_commit.type == "feat"
         assert tgit_commit.description == "test message"
@@ -1188,10 +1182,10 @@ class TestChangelogErrorHandling:
         """Test _get_remote_uri_safe basic functionality."""
         mock_repo = Mock()
         mock_repo.remote.side_effect = ValueError("No remote found")
-        
+
         # Should return None when no remote is found
         result = _get_remote_uri_safe(mock_repo)
-        
+
         assert result is None
 
     def test_extract_latest_tag_from_changelog_malformed_file(self, tmp_path):
@@ -1203,9 +1197,9 @@ class TestChangelogErrorHandling:
 This is not a proper changelog
 No version tags here
 """)
-        
+
         result = extract_latest_tag_from_changelog(str(changelog_file))
-        
+
         # Should return None for malformed changelog
         assert result is None
 
@@ -1214,7 +1208,7 @@ No version tags here
         # Test with unicode characters in commit message
         message = "feat: add 中文 支持 for internationalization"
         match = commit_pattern.match(message)
-        
+
         assert match is not None
         assert match.group("type") == "feat"
         assert "中文 支持" in match.group("description")
