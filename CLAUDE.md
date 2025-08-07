@@ -14,6 +14,9 @@ TGIT is a Python CLI tool for Git workflow automation that provides AI-powered c
 # Run ruff linting (configured in pyproject.toml)
 ruff check .
 
+# Auto-fix ruff errors where possible
+ruff check --fix .
+
 # Run ruff formatting
 ruff format .
 ```
@@ -26,6 +29,9 @@ uv build
 
 # Install package in development mode
 uv pip install -e .
+
+# Install dependencies (including dev dependencies)
+uv sync
 
 # Publish package (uses scripts/publish.sh)
 ./scripts/publish.sh
@@ -57,9 +63,10 @@ pytest tests/ --cov=tgit --cov-report=term-missing --cov-report=html:htmlcov
 
 ### Entry Point and CLI Structure
 
-- `cli.py` - Main CLI entry point using Typer with subcommands
+- `cli.py` - Main CLI entry point using Click with subcommands
 - Each subcommand has its own module (commit.py, changelog.py, version.py, etc.)
 - Rich library used for enhanced terminal output and progress bars
+- Package entry point: `tgit = "tgit:cli.app"`
 
 ### Core Modules
 
@@ -67,9 +74,10 @@ pytest tests/ --cov=tgit --cov-report=term-missing --cov-report=html:htmlcov
 - `changelog.py` - Generates conventional commit-based changelogs with custom markdown rendering
 - `version.py` - Semantic versioning with support for multiple project file types
 - `add.py` - Simple git add wrapper
-- `config.py` - Configuration management for API keys and settings
 - `settings.py` - YAML-based configuration loading from global (~/.tgit.yaml) and workspace (.tgit.yaml) files
-- `utils.py` - Shared utilities including command execution and commit formatting
+- `interactive_settings.py` - Interactive settings management CLI
+- `shared.py` - Shared utilities including command execution and commit formatting
+- `types.py` - Pydantic models and type definitions
 
 ### AI Integration
 
@@ -118,10 +126,11 @@ pytest tests/ --cov=tgit --cov-report=term-missing --cov-report=html:htmlcov
 
 ### Dependencies
 
-- Core: rich, pyyaml, questionary, gitpython, openai, jinja2, beautifulsoup4, typer
+- Core: rich, pyyaml, questionary, gitpython, openai, jinja2, beautifulsoup4, click
 - Build: hatchling via uv
 - Code quality: ruff (configured for line length 140, extensive rule set)
 - Testing: pytest, pytest-cov (via dev dependencies)
+- Python version: 3.11+ required
 
 ## Testing Notes
 
