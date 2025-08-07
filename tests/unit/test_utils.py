@@ -242,3 +242,24 @@ class TestTypeEmojis:
             assert commit_type in type_emojis
             assert type_emojis[commit_type].startswith(":")
             assert type_emojis[commit_type].endswith(":")
+
+
+class TestSettingsFileHandling:
+    """Test settings file loading and error handling."""
+
+    def test_load_settings_basic_functionality(self, tmp_path):
+        """Test basic settings file loading."""
+        from tgit.utils import load_workspace_settings
+        import json
+        
+        # Create .tgit directory and settings.json file
+        tgit_dir = tmp_path / ".tgit"
+        tgit_dir.mkdir()
+        config_file = tgit_dir / "settings.json"
+        config_file.write_text(json.dumps({"apiKey": "test_key", "model": "gpt-4"}))
+        
+        with patch("tgit.utils.Path.cwd", return_value=tmp_path):
+            result = load_workspace_settings()
+            
+            assert result["apiKey"] == "test_key"
+            assert result["model"] == "gpt-4"

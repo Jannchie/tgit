@@ -21,6 +21,7 @@ from tgit.version import (
     get_next_version,
     get_version_from_cargo_toml,
     get_version_from_files,
+    get_version_from_git,
     get_version_from_package_json,
     get_version_from_pyproject_toml,
     get_version_from_setup_py,
@@ -1273,3 +1274,129 @@ serde = "1.0"
         assert 'version = "1.2.3"' in updated_content
         assert 'name = "my_package"' in updated_content
         assert 'serde = "1.0"' in updated_content
+
+
+class TestPreReleaseVersionHandling:
+    """Test pre-release version handling functionality."""
+
+    def test_apply_version_choice_prepatch(self):
+        """Test _apply_version_choice with prepatch."""
+        prev_version = Version(1, 2, 3)
+        target = VersionChoice(bump="prepatch", previous_version=prev_version)
+        
+        with patch("tgit.version.questionary.text") as mock_text:
+            mock_text.return_value.ask.return_value = "alpha"
+            result = _apply_version_choice(target, prev_version)
+            
+            assert result == Version(1, 2, 4, release="alpha")
+
+    def test_apply_version_choice_custom(self):
+        """Test _apply_version_choice with custom version."""
+        prev_version = Version(1, 2, 3)
+        target = VersionChoice(bump="custom", previous_version=prev_version)
+        
+        with patch("tgit.version.questionary.text") as mock_text:
+            mock_text.return_value.ask.return_value = "5.0.0"
+            result = _apply_version_choice(target, prev_version)
+            
+            assert result == Version(5, 0, 0)
+
+
+class TestVersionFromFilesErrorHandling:
+    """Test error handling in version file parsing."""
+
+    def test_get_version_from_files_flit_support(self, tmp_path):
+        """Test get_version_from_files with flit-style pyproject.toml."""
+        pyproject_toml = tmp_path / "pyproject.toml"
+        content = """
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+version = "1.2.3"
+"""
+        pyproject_toml.write_text(content)
+        
+        result = get_version_from_files(tmp_path)
+        
+        assert result == Version(1, 2, 3)
+
+    def test_get_version_from_files_setuptools_support(self, tmp_path):
+        """Test get_version_from_files with project.version style."""
+        pyproject_toml = tmp_path / "pyproject.toml"
+        content = """
+[project]
+version = "2.1.0"
+"""
+        pyproject_toml.write_text(content)
+        
+        result = get_version_from_files(tmp_path)
+        
+        assert result == Version(2, 1, 0)
+
+    def test_get_version_from_files_priority_order(self, tmp_path):
+        """Test get_version_from_files respects priority order."""
+        # Create multiple version files with different priorities
+        (tmp_path / "package.json").write_text('{"version": "1.0.0"}')
+        (tmp_path / "pyproject.toml").write_text('[project]\nversion = "2.0.0"')
+        (tmp_path / "setup.py").write_text('from setuptools import setup\nsetup(version="3.0.0")')
+        (tmp_path / "Cargo.toml").write_text('[package]\nversion = "4.0.0"')
+        (tmp_path / "VERSION").write_text("5.0.0")
+        (tmp_path / "VERSION.txt").write_text("6.0.0")
+        
+        result = get_version_from_files(tmp_path)
+        
+        # Should return the highest priority version (package.json = priority 1)
+        assert result == Version(1, 0, 0)
+
+    def test_get_version_from_pyproject_toml_no_version_key(self, tmp_path):
+        """Test get_version_from_pyproject_toml with missing version key."""
+        pyproject_toml = tmp_path / "pyproject.toml"
+        content = """
+[project]
+name = "test-package"
+"""
+        pyproject_toml.write_text(content)
+        
+        result = get_version_from_pyproject_toml(tmp_path)
+        
+        assert result is None
+
+    def test_get_version_from_package_json_no_version_key(self, tmp_path):
+        """Test get_version_from_package_json with missing version key."""
+        package_json = tmp_path / "package.json"
+        content = '{"name": "test-package"}'
+        package_json.write_text(content)
+        
+        result = get_version_from_package_json(tmp_path)
+        
+        assert result is None
+
+
+class TestBumpVersionErrorHandling:
+    """Test bump_version function error handling."""
+
+    @patch("tgit.version.get_detected_files")
+    @patch("tgit.version.get_root_detected_files") 
+    @patch("tgit.version.get_current_version")
+    @patch("tgit.version.console")
+    def test_bump_version_no_version_files(self, mock_console, mock_get_current, mock_get_root_files, mock_get_files):
+        """Test handle_version when no version files found."""
+        from tgit.version import handle_version, Version
+        
+        mock_get_files.return_value = []
+        mock_get_root_files.return_value = []
+        mock_get_current.return_value = Version.from_str("1.0.0")
+        
+        # Create mock args
+        args = Mock()
+        args.path = "/fake/path"
+        args.recursive = False
+        args.verbose = 0  # Set verbose as integer, not Mock
+        
+        # This should handle the case gracefully and print message about no files
+        handle_version(args)
+        
+        # Should print the message about no version files detected
+        mock_console.print.assert_any_call("No version files detected for update.")

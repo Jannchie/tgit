@@ -552,3 +552,50 @@ class TestCommitFunction:
         assert called_args.emoji == expected_args.emoji
         assert called_args.breaking == expected_args.breaking
         assert called_args.ai == expected_args.ai
+
+
+class TestCommitErrorHandling:
+    """Test error handling in commit functions."""
+
+    @patch("tgit.commit.get_ai_command")
+    def test_handle_commit_no_message(self, mock_get_ai_command):
+        """Test handle_commit with no message provided."""
+        args = CommitArgs(message=[], emoji=False, breaking=False, ai=False)
+        
+        # Mock get_ai_command to return None (no AI command generated)
+        mock_get_ai_command.return_value = None
+        
+        # This should call get_ai_command and return early when it returns None
+        handle_commit(args)
+        
+        # Should have called get_ai_command
+        mock_get_ai_command.assert_called_once()
+
+    def test_get_file_change_sizes_binary_files(self):
+        """Test get_file_change_sizes with binary files."""
+        mock_repo = Mock()
+        mock_repo.git.diff.return_value = "-\t-\timage.png\n5\t0\tfile.py\n-\t-\tbinary.dat"
+        
+        result = get_file_change_sizes(mock_repo)
+        
+        # Should handle binary files (marked with -/-) as 0 size
+        expected = {
+            "image.png": 0,  # Binary files treated as 0 size
+            "file.py": 5,
+            "binary.dat": 0
+        }
+        assert result == expected
+
+    @patch("tgit.commit.git.Repo")
+    def test_get_changed_files_from_status_renamed_files(self, mock_repo_class):
+        """Test get_changed_files_from_status with renamed files."""
+        mock_repo = Mock()
+        mock_repo.git.diff.return_value = """R100\told_name.py\tnew_name.py
+R100\tdir/old.js\tdir/new.js
+M\tmodified.py"""
+        
+        result = get_changed_files_from_status(mock_repo)
+        
+        # Should include both old and new names of renamed files and modified files
+        expected = {"old_name.py", "new_name.py", "dir/old.js", "dir/new.js", "modified.py"}
+        assert result == expected
