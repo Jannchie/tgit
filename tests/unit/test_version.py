@@ -182,6 +182,98 @@ class TestVersionChoice:
         assert choice.next_version.patch == 4
         assert choice.next_version.release == "{RELEASE}"
 
+    def test_version_choice_major_removes_prerelease(self):
+        """Test VersionChoice removes prerelease suffix for major bump to create stable release."""
+        prev_version = Version(major=0, minor=5, patch=0, release="beta")
+        choice = VersionChoice(prev_version, "major")
+        assert choice.bump == "major"
+        assert choice.next_version.major == 1
+        assert choice.next_version.minor == 0
+        assert choice.next_version.patch == 0
+        assert choice.next_version.release is None
+        assert choice.next_version.build is None
+
+    def test_version_choice_minor_removes_prerelease(self):
+        """Test VersionChoice removes prerelease suffix for minor bump to create stable release."""
+        prev_version = Version(major=0, minor=5, patch=0, release="beta")
+        choice = VersionChoice(prev_version, "minor")
+        assert choice.bump == "minor"
+        assert choice.next_version.major == 0
+        assert choice.next_version.minor == 6
+        assert choice.next_version.patch == 0
+        assert choice.next_version.release is None
+        assert choice.next_version.build is None
+
+    def test_version_choice_patch_removes_prerelease(self):
+        """Test VersionChoice removes prerelease suffix for patch bump to create stable release."""
+        prev_version = Version(major=0, minor=5, patch=0, release="beta")
+        choice = VersionChoice(prev_version, "patch")
+        assert choice.bump == "patch"
+        assert choice.next_version.major == 0
+        assert choice.next_version.minor == 5
+        assert choice.next_version.patch == 1
+        assert choice.next_version.release is None
+        assert choice.next_version.build is None
+
+    def test_version_choice_release_removes_prerelease_suffix(self):
+        """Test VersionChoice with 'release' removes prerelease suffix without changing version numbers."""
+        prev_version = Version(major=1, minor=0, patch=0, release="beta")
+        choice = VersionChoice(prev_version, "release")
+        assert choice.bump == "release"
+        assert choice.next_version.major == 1
+        assert choice.next_version.minor == 0
+        assert choice.next_version.patch == 0
+        assert choice.next_version.release is None
+        assert choice.next_version.build is None
+
+    def test_version_choice_release_with_build_metadata(self):
+        """Test VersionChoice with 'release' removes both prerelease and build metadata."""
+        prev_version = Version(major=2, minor=1, patch=3, release="rc.1", build="20231201")
+        choice = VersionChoice(prev_version, "release")
+        assert choice.bump == "release"
+        assert choice.next_version.major == 2
+        assert choice.next_version.minor == 1
+        assert choice.next_version.patch == 3
+        assert choice.next_version.release is None
+        assert choice.next_version.build is None
+
+    @patch("tgit.version._prompt_for_version_choice")
+    @patch("tgit.version._apply_version_choice")
+    def test_handle_interactive_version_selection_includes_release_for_prerelease(self, mock_apply, mock_prompt):
+        """Test that 'release' option is included when current version is prerelease."""
+        prev_version = Version(1, 0, 0, release="beta")
+        mock_choice = Mock()
+        mock_choice.bump = "release"
+        mock_prompt.return_value = mock_choice
+        mock_apply.return_value = Version(1, 0, 0)
+        
+        _handle_interactive_version_selection(prev_version, "patch", 0)
+        
+        # Verify that _prompt_for_version_choice was called with choices including 'release'
+        assert mock_prompt.called
+        choices_arg = mock_prompt.call_args[0][0]
+        bump_types = [choice.bump for choice in choices_arg]
+        assert "release" in bump_types
+        assert bump_types[0] == "release"  # Should be first option for prominence
+
+    @patch("tgit.version._prompt_for_version_choice")
+    @patch("tgit.version._apply_version_choice")
+    def test_handle_interactive_version_selection_no_release_for_stable(self, mock_apply, mock_prompt):
+        """Test that 'release' option is not included when current version is stable."""
+        prev_version = Version(1, 0, 0)  # No prerelease suffix
+        mock_choice = Mock()
+        mock_choice.bump = "patch"
+        mock_prompt.return_value = mock_choice
+        mock_apply.return_value = Version(1, 0, 1)
+        
+        _handle_interactive_version_selection(prev_version, "patch", 0)
+        
+        # Verify that _prompt_for_version_choice was called with choices not including 'release'
+        assert mock_prompt.called
+        choices_arg = mock_prompt.call_args[0][0]
+        bump_types = [choice.bump for choice in choices_arg]
+        assert "release" not in bump_types
+
     def test_version_choice_str(self):
         """Test string representation of VersionChoice."""
         prev_version = Version(major=1, minor=2, patch=3)
@@ -212,6 +304,14 @@ class TestVersionParsing:
         """Test extracting version from package.json without version field."""
         package_json = tmp_path / "package.json"
         package_json.write_text('{"name": "test"}')
+
+        version = get_version_from_package_json(tmp_path)
+        assert version is None
+
+    def test_get_version_from_package_json_invalid_version(self, tmp_path):
+        """Test extracting invalid version from package.json returns None."""
+        package_json = tmp_path / "package.json"
+        package_json.write_text('{"version": "invalid-version"}')
 
         version = get_version_from_package_json(tmp_path)
         assert version is None

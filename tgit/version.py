@@ -118,6 +118,13 @@ class VersionChoice:
                 patch=previous_version.patch + 1,
                 release="{RELEASE}",
             )
+        elif bump == "release":
+            # Remove prerelease suffix to create a stable release
+            self.next_version = Version(
+                major=previous_version.major,
+                minor=previous_version.minor,
+                patch=previous_version.patch,
+            )
         elif bump == "previous":
             self.next_version = previous_version
 
@@ -162,23 +169,35 @@ def get_version_from_package_json(path: Path) -> Version | None:
         with package_json_path.open() as f:
             json_data = json.load(f)
             if version := json_data.get("version"):
-                return Version.from_str(version)
+                try:
+                    return Version.from_str(version)
+                except ValueError:
+                    return None
     return None
 
 
 def get_version_from_pyproject_toml(path: Path) -> Version | None:
     pyproject_toml_path = path / "pyproject.toml"
-    if pyproject_toml_path.exists():
-        with pyproject_toml_path.open("rb") as f:
-            toml_data = tomllib.load(f)
-            if version := toml_data.get("project", {}).get("version"):
+    if not pyproject_toml_path.exists():
+        return None
+
+    with pyproject_toml_path.open("rb") as f:
+        toml_data = tomllib.load(f)
+
+    version_paths = [
+        toml_data.get("project", {}).get("version"),
+        toml_data.get("tool", {}).get("poetry", {}).get("version"),
+        toml_data.get("tool", {}).get("flit", {}).get("metadata", {}).get("version"),
+        toml_data.get("tool", {}).get("setuptools", {}).get("setup_requires", {}).get("version"),
+    ]
+
+    for version in version_paths:
+        if version:
+            try:
                 return Version.from_str(version)
-            if version := toml_data.get("tool", {}).get("poetry", {}).get("version"):
-                return Version.from_str(version)
-            if version := toml_data.get("tool", {}).get("flit", {}).get("metadata", {}).get("version"):
-                return Version.from_str(version)
-            if version := toml_data.get("tool", {}).get("setuptools", {}).get("setup_requires", {}).get("version"):
-                return Version.from_str(version)
+            except ValueError:
+                continue
+
     return None
 
 
@@ -188,7 +207,10 @@ def get_version_from_setup_py(path: Path) -> Version | None:
         with setup_py_path.open() as f:
             setup_data = f.read()
             if res := re.search(r"version=['\"]([^'\"]+)['\"]", setup_data):
-                return Version.from_str(res[1])
+                try:
+                    return Version.from_str(res[1])
+                except ValueError:
+                    return None
     return None
 
 
@@ -211,33 +233,31 @@ def get_version_from_cargo_toml(directory_path: Path) -> Version | None:
     if not cargo_toml_path.is_file():
         console.print(f"Cargo.toml not found or is not a file at: {cargo_toml_path}")
         return None
-    try:
-        # 2. Open and read the file
-        with cargo_toml_path.open("rb") as f:
-            try:
-                # 3. Parse TOML content
-                cargo_data = tomllib.load(f)
-            except tomllib.TOMLDecodeError as e:
-                console.print(f"Failed to decode TOML file {cargo_toml_path}: {e}")
-                return None
 
-    except OSError as e:
-        # Handle potential file reading errors (permissions, etc.)
-        console.print(f"Could not read file {cargo_toml_path}: {e}")
+    # 2. Load and parse the TOML file
+    try:
+        with cargo_toml_path.open("rb") as f:
+            cargo_data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        console.print(f"Could not read or parse TOML file {cargo_toml_path}: {e}")
         return None
 
-    # 4. Safely access the package table
+    # 3. Safely access the package table and version string
     package_data = cargo_data.get("package")
     if not isinstance(package_data, dict):
         console.print(f"Missing or invalid [package] table in {cargo_toml_path}")
         return None
 
-    # 5. Safely access the version string
     version_str = package_data.get("version")  # type: ignore
     if not isinstance(version_str, str) or not version_str:  # Check if it's a non-empty string
         console.print(f"Missing, empty, or invalid 'version' string in [package] table of {cargo_toml_path}")
         return None
-    return Version.from_str(version_str)
+
+    # 4. Parse and return the version
+    try:
+        return Version.from_str(version_str)
+    except ValueError:
+        return None
 
 
 def get_version_from_version_file(path: Path) -> Version | None:
@@ -245,7 +265,10 @@ def get_version_from_version_file(path: Path) -> Version | None:
     if version_path.exists():
         with version_path.open() as f:
             version = f.read().strip()
-            return Version.from_str(version)
+            try:
+                return Version.from_str(version)
+            except ValueError:
+                return None
     return None
 
 
@@ -254,7 +277,10 @@ def get_version_from_version_txt(path: Path) -> Version | None:
     if version_txt_path.exists():
         with version_txt_path.open() as f:
             version = f.read().strip()
-            return Version.from_str(version)
+            try:
+                return Version.from_str(version)
+            except ValueError:
+                return None
     return None
 
 
@@ -269,7 +295,10 @@ def get_version_from_git(path: Path) -> Version | None:
         tags = status.stdout.decode().split("\n")
         for tag in tags:
             if tag.startswith("v"):
-                return Version.from_str(tag[1:])
+                try:
+                    return Version.from_str(tag[1:])
+                except ValueError:
+                    continue
     return None
 
 
@@ -517,9 +546,15 @@ def _handle_explicit_version_args(args: VersionArgs, prev_version: Version) -> V
 
 
 def _handle_interactive_version_selection(prev_version: Version, default_bump: str, verbose: int) -> Version | None:
-    choices = [
-        VersionChoice(prev_version, bump) for bump in ["patch", "minor", "major", "prepatch", "preminor", "premajor", "previous", "custom"]
-    ]
+    bump_options = ["patch", "minor", "major", "prepatch", "preminor", "premajor"]
+
+    # Add "release" option if current version is a prerelease
+    if prev_version.release:
+        bump_options.insert(0, "release")  # Put it at the beginning for prominence
+
+    bump_options.extend(["previous", "custom"])
+
+    choices = [VersionChoice(prev_version, bump) for bump in bump_options]
     default_choice = next((choice for choice in choices if choice.bump == default_bump), None)
 
     console.print(f"Auto bump based on commits: [cyan bold]{default_bump}")
@@ -569,6 +604,9 @@ def _apply_version_choice(target: VersionChoice, prev_version: Version) -> Versi
             next_version = custom_version
         else:
             return None
+    elif target.bump == "release":
+        # Remove prerelease suffix - next_version is already set correctly in VersionChoice
+        next_version = target.next_version
     else:
         # For regular bumps: patch, minor, major, previous
         bump_version(target, next_version)
