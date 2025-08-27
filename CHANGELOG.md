@@ -1,3 +1,31 @@
+## v0.24.0
+
+[v0.23.1...v0.24.0](https://github.com/Jannchie/tgit/compare/v0.23.1...v0.24.0)
+
+### :sparkles: Features
+
+- **version**: support release bump to remove prerelease && handle invalid version strings robustly - By [Jannchie](mailto:jannchie@gmail.com) in [945f42e](https://github.com/Jannchie/tgit/commit/945f42e)
+- **version-detect**: add gitignore and venv directory ignore to file detection - By [Jannchie](mailto:jannchie@gmail.com) in [985aaf4](https://github.com/Jannchie/tgit/commit/985aaf4)
+
+### :adhesive_bandage: Fixes
+
+- resolve all ruff linting errors - By [Jannchie](mailto:jannchie@gmail.com) and [Claude](mailto:noreply@anthropic.com) in [61808b6](https://github.com/Jannchie/tgit/commit/61808b6)
+
+### :lipstick: Styles
+
+- **tests**: remove extra blank lines and fix formatting - By [Jannchie](mailto:jannchie@gmail.com) in [7c4947a](https://github.com/Jannchie/tgit/commit/7c4947a)
+- **tests**: format test code for consistency - By [Jannchie](mailto:jannchie@gmail.com) in [20d2087](https://github.com/Jannchie/tgit/commit/20d2087)
+
+### :memo: Documentation
+
+- **readme**: add codecov badge - By [Jannchie](mailto:jannchie@gmail.com) in [5e4c4ef](https://github.com/Jannchie/tgit/commit/5e4c4ef)
+- **readme**: update codetime badge url - By [Jannchie](mailto:jannchie@gmail.com) in [7d27200](https://github.com/Jannchie/tgit/commit/7d27200)
+- **readme**: update usage and module details - By [Jannchie](mailto:jannchie@gmail.com) in [1381044](https://github.com/Jannchie/tgit/commit/1381044)
+
+### :wrench: Chores
+
+- **ci**: add github actions ci workflow - By [Jannchie](mailto:jannchie@gmail.com) in [3d545a0](https://github.com/Jannchie/tgit/commit/3d545a0)
+
 ## v0.23.1
 
 [v0.23.0...v0.23.1](https://github.com/Jannchie/tgit/compare/v0.23.0...v0.23.1)
