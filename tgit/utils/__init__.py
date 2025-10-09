@@ -8,6 +8,7 @@ import questionary
 import rich
 from rich.syntax import Syntax
 
+from tgit.constants import DEFAULT_MODEL
 from tgit.types import CommitSettings, CommitType, TGitSettings
 
 console = rich.get_console()
@@ -147,7 +148,7 @@ def _dict_to_settings(data: dict[str, Any]) -> TGitSettings:
         commit=commit_settings,
         api_key=data.get("apiKey", ""),
         api_url=data.get("apiUrl", ""),
-        model=data.get("model", ""),
+        model=data.get("model") or DEFAULT_MODEL,
         show_command=data.get("show_command", True),
         skip_confirm=data.get("skip_confirm", False),
     )

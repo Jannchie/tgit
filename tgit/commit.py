@@ -11,6 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 from rich import get_console, print
 
+from tgit.constants import DEFAULT_MODEL
 from tgit.shared import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
 
@@ -185,7 +186,8 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
                 },
                 {"role": "user", "content": diff},
             ],
-            model=settings.model or "gpt-4.1",
+            model=settings.model or DEFAULT_MODEL,
+            reasoning={"effort": "minimal"},
             max_output_tokens=50,
             text_format=CommitData,
         )

@@ -58,10 +58,6 @@ tgit changelog
 # Bump version and generate changelog
 tgit version
 
-# Interactive settings configuration
-tgit settings
-```
-
 ### Configuration
 
 The easiest way to configure TGIT is through the interactive settings command:
@@ -74,7 +70,7 @@ tgit settings
 This will guide you through setting up:
 
 - OpenAI API key for AI-powered commits
-- Preferred AI model (gpt-4, gpt-3.5-turbo, etc.)
+- Preferred AI model (gpt-5-mini, gpt-4.1, etc.)
 - Commit emoji preferences
 - Custom commit types
 
@@ -82,7 +78,7 @@ Alternatively, you can manually create a `.tgit.yaml` file in your project root 
 
 ```yaml
 apiKey: "your-openai-api-key"
-model: "gpt-4"
+model: "gpt-5-mini"
 commit:
   emoji: true
   types:

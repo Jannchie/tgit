@@ -8,6 +8,7 @@ import questionary
 from questionary import Choice
 from rich import print
 
+from tgit.constants import DEFAULT_MODEL
 from tgit.utils import load_global_settings, load_workspace_settings
 
 
@@ -84,7 +85,7 @@ def _configure_global_settings() -> None:
 
     model = questionary.text(
         "Model name",
-        default=current_settings.get("model", "gpt-4o-mini"),
+        default=current_settings.get("model", DEFAULT_MODEL),
     ).ask()
     if model is None:
         return
