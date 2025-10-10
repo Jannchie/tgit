@@ -306,6 +306,8 @@ class TestGenerateCommitWithAI:
         mock_check.assert_called_once()
         mock_create_client.assert_called_once()
         mock_client.responses.parse.assert_called_once()
+        _, kwargs = mock_client.responses.parse.call_args
+        assert "reasoning" not in kwargs
 
     @patch("tgit.commit._check_openai_availability")
     @patch("tgit.commit._create_openai_client")
@@ -318,6 +320,31 @@ class TestGenerateCommitWithAI:
 
         with pytest.raises(Exception):
             _generate_commit_with_ai("diff content", None, "main")
+
+    @patch("tgit.commit._check_openai_availability")
+    @patch("tgit.commit._create_openai_client")
+    @patch("tgit.commit.console")
+    @patch("tgit.commit.commit_prompt_template")
+    @patch("tgit.commit.settings")
+    def test_generate_commit_with_ai_reasoning_model(self, mock_settings, mock_template, mock_console, mock_create_client, mock_check):
+        """Test reasoning effort is added for reasoning-capable models."""
+        mock_client = Mock()
+        mock_create_client.return_value = mock_client
+        mock_template.render.return_value = "system prompt"
+        mock_settings.model = "o1-mini"
+
+        mock_response = Mock()
+        mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False)
+        mock_response.output_parsed = mock_commit_data
+        mock_client.responses.parse.return_value = mock_response
+
+        result = _generate_commit_with_ai("diff content", None, "main")
+
+        assert result == mock_commit_data
+        mock_check.assert_called_once()
+        mock_create_client.assert_called_once()
+        _, kwargs = mock_client.responses.parse.call_args
+        assert kwargs["reasoning"] == {"effort": "minimal"}
 
 
 class TestGetAICommand:

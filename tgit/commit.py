@@ -3,7 +3,7 @@ import importlib.resources
 import itertools
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import click
 import git
@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
 from rich import get_console, print
 
-from tgit.constants import DEFAULT_MODEL
+from tgit.constants import DEFAULT_MODEL, REASONING_MODEL_HINTS
 from tgit.shared import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
 
@@ -70,6 +70,14 @@ class CommitData(BaseModel):
     scope: str | None
     msg: str
     is_breaking: bool
+
+
+def _supports_reasoning(model: str) -> bool:
+    """Return True when the selected model supports reasoning parameters."""
+    if not model:
+        return False
+    model_lower = model.lower()
+    return any(hint in model_lower for hint in REASONING_MODEL_HINTS)
 
 
 def get_changed_files_from_status(repo: git.Repo) -> set[str]:
@@ -178,18 +186,24 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
     )
 
     with console.status("[bold green]Generating commit message...[/bold green]"):
-        chat_completion = client.responses.parse(
-            input=[
+        model_name = settings.model or DEFAULT_MODEL
+        request_kwargs: dict[str, Any] = {
+            "input": [
                 {
                     "role": "system",
                     "content": commit_prompt_template.render(**template_params.__dict__),
                 },
                 {"role": "user", "content": diff},
             ],
-            model=settings.model or DEFAULT_MODEL,
-            reasoning={"effort": "minimal"},
-            max_output_tokens=50,
-            text_format=CommitData,
+            "model": model_name,
+            "max_output_tokens": 50,
+            "text_format": CommitData,
+        }
+        if _supports_reasoning(model_name):
+            request_kwargs["reasoning"] = {"effort": "minimal"}
+
+        chat_completion = client.responses.parse(
+            **request_kwargs,
         )
 
     return chat_completion.output_parsed
