@@ -1,3 +1,16 @@
+## v0.25.0
+
+[v0.24.1...v0.25.0](https://github.com/Jannchie/tgit/compare/v0.24.1...v0.25.0)
+
+### :sparkles: Features
+
+- **ai**: add reasoning support for compatible models - By [Jannchie](mailto:jannchie@gmail.com) in [66d0b41](https://github.com/Jannchie/tgit/commit/66d0b41)
+- **config**: centralize default model and use it - By [Jannchie](mailto:jannchie@gmail.com) in [a4e3ec1](https://github.com/Jannchie/tgit/commit/a4e3ec1)
+
+### :wrench: Chores
+
+- **constants**: add gpt-5 to reasoning model hints - By [Jannchie](mailto:jannchie@gmail.com) in [bad2722](https://github.com/Jannchie/tgit/commit/bad2722)
+
 ## v0.24.1
 
 [v0.24.0...v0.24.1](https://github.com/Jannchie/tgit/compare/v0.24.0...v0.24.1)
