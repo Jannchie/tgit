@@ -25,6 +25,7 @@ with importlib.resources.path("tgit", "prompts") as prompt_path:
 commit_types = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "wip"]
 commit_file = "commit.txt"
 commit_prompt_template = env.get_template("commit.txt")
+DEFAULT_MAX_OUTPUT_TOKENS = 256
 
 # Define click arguments/options at module level to avoid B008
 MESSAGE_ARG = click.argument(
@@ -64,12 +65,11 @@ class TemplateParams:
     branch: str
     specified_type: str | None = None
 
-
 class CommitData(BaseModel):
     type: str
-    scope: str | None
+    scope: str | None = None
     msg: str
-    is_breaking: bool
+    is_breaking: bool = False
 
 
 def _supports_reasoning(model: str) -> bool:
@@ -196,7 +196,7 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
                 {"role": "user", "content": diff},
             ],
             "model": model_name,
-            "max_output_tokens": 50,
+            "max_output_tokens": DEFAULT_MAX_OUTPUT_TOKENS,
             "text_format": CommitData,
         }
         if _supports_reasoning(model_name):
