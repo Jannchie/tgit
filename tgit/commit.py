@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import click
 import git
 from jinja2 import Environment, FileSystemLoader
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from rich import get_console, print
 
 from tgit.constants import DEFAULT_MODEL, REASONING_MODEL_HINTS
@@ -65,11 +65,18 @@ class TemplateParams:
     branch: str
     specified_type: str | None = None
 
+
+class PotentialSecret(BaseModel):
+    file: str
+    description: str
+
+
 class CommitData(BaseModel):
     type: str
     scope: str | None = None
     msg: str
     is_breaking: bool = False
+    secrets: list[PotentialSecret] = Field(default_factory=list)
 
 
 def _supports_reasoning(model: str) -> bool:
@@ -242,6 +249,16 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         print("[red]Could not connect to AI provider[/red]")
         print(e)
         return None
+
+    detected_secrets: list[PotentialSecret] = resp.secrets if resp.secrets else []
+    if detected_secrets:
+        print("[red]Detected potential secrets in these files:[/red]")
+        for secret in detected_secrets:
+            print(f"[red]- {secret.file}: {secret.description}[/red]")
+        proceed = click.confirm("Detected potential secrets. Continue with commit?", default=False)
+        if not proceed:
+            print("[yellow]Commit aborted. Please review sensitive content.[/yellow]")
+            return None
 
     # 如果用户指定了类型，则使用用户指定的类型，否则使用 AI 生成的类型
     commit_type = specified_type if specified_type is not None else resp.type

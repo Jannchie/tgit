@@ -34,12 +34,18 @@ Mark `is_breaking: true` only if changes:
 - Require user action for compatibility
 - Remove or significantly change existing functionality
 
+### Secret Detection
+- Review the diff for potential secrets (API keys, tokens, passwords, private keys, credentials, etc.).
+- For every suspected secret, add an entry to the `secrets` array with the file path and a brief description of why it is sensitive.
+- If no secrets are found, return an empty array.
+
 ## Analysis Process
 1. Review the diff comprehensively
 2. Identify the primary type of change
 3. Determine appropriate scope from modified files/areas
 4. Craft a concise message covering main changes
 5. Assess backward compatibility impact
+6. Flag any suspected secrets
 
 ## Output Format
 Return valid JSON matching this structure:
@@ -48,15 +54,22 @@ Return valid JSON matching this structure:
   "type": "string",
   "scope": "string|null", 
   "msg": "string",
-  "is_breaking": "boolean"
+  "is_breaking": "boolean",
+  "secrets": [
+    {
+      "file": "string",
+      "description": "string"
+    }
+  ]
 }
 ```
 
 ## Examples
 ```json
-{"type": "feat", "scope": "auth", "msg": "add oauth2 login", "is_breaking": false}
-{"type": "fix", "scope": "api", "msg": "handle null user responses", "is_breaking": false}
-{"type": "refactor", "scope": null, "msg": "restructure project layout", "is_breaking": true}
+{"type": "feat", "scope": "auth", "msg": "add oauth2 login", "is_breaking": false, "secrets": []}
+{"type": "fix", "scope": "api", "msg": "handle null user responses", "is_breaking": false, "secrets": []}
+{"type": "refactor", "scope": null, "msg": "restructure project layout", "is_breaking": true, "secrets": []}
+{"type": "chore", "scope": "config", "msg": "update secrets storage", "is_breaking": false, "secrets": [{"file": "config/.env", "description": "detected value resembling api key"}]}
 ```
 
 Now analyze the provided diff and generate the commit message.
