@@ -1,3 +1,15 @@
+## v0.26.0
+
+[v0.25.0...v0.26.0](https://github.com/Jannchie/tgit/compare/v0.25.0...v0.26.0)
+
+### :sparkles: Features
+
+- **commit**: add secret detection support - By [Jannchie](mailto:jannchie@gmail.com) in [e1f5207](https://github.com/Jannchie/tgit/commit/e1f5207)
+
+### :wrench: Chores
+
+- **commit**: add default token limit and defaults to commit model - By [Jannchie](mailto:jannchie@gmail.com) in [66d4d45](https://github.com/Jannchie/tgit/commit/66d4d45)
+
 ## v0.25.0
 
 [v0.24.1...v0.25.0](https://github.com/Jannchie/tgit/compare/v0.24.1...v0.25.0)
