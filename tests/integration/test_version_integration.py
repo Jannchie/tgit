@@ -127,7 +127,7 @@ dependencies = []
         next_version = Version(major=1, minor=1, patch=0)
 
         # Update version files
-        update_version_files(args, next_version, verbose=0, reclusive=False)
+        update_version_files(args, next_version, verbose=0, recursive=False)
 
         # Verify update
         updated_content = json.loads(package_json.read_text())
@@ -171,7 +171,7 @@ description = "Test package"
         next_version = Version(major=2, minor=0, patch=0)
 
         # Update version files
-        update_version_files(args, next_version, verbose=0, reclusive=False)
+        update_version_files(args, next_version, verbose=0, recursive=False)
 
         # Verify update
         updated_content = pyproject_toml.read_text()
@@ -208,7 +208,7 @@ description = "Test package"
         next_version = Version(major=1, minor=0, patch=1)
 
         # Update version files
-        update_version_files(args, next_version, verbose=0, reclusive=False)
+        update_version_files(args, next_version, verbose=0, recursive=False)
 
         # Verify updates
         updated_package_json = json.loads(package_json.read_text())
@@ -251,7 +251,7 @@ description = "Test package"
         next_version = Version(major=1, minor=1, patch=0)
 
         # Update version files
-        update_version_files(args, next_version, verbose=0, reclusive=True)
+        update_version_files(args, next_version, verbose=0, recursive=True)
 
         # Verify updates in both directories
         root_content = json.loads(root_package_json.read_text())
@@ -295,7 +295,7 @@ description = "Test package"
         next_version = Version(major=2, minor=0, patch=0)
 
         # Update version files
-        update_version_files(args, next_version, verbose=0, reclusive=True)
+        update_version_files(args, next_version, verbose=0, recursive=True)
 
         # Verify root package.json was updated
         root_content = json.loads(root_package_json.read_text())
@@ -418,7 +418,7 @@ class TestVersionGitIntegration:
 
         # Update version files
         next_version = Version(major=1, minor=0, patch=1)
-        update_version_files(args, next_version, verbose=0, reclusive=False)
+        update_version_files(args, next_version, verbose=0, recursive=False)
 
         # Verify version was updated
         updated_content = json.loads(package_json.read_text())

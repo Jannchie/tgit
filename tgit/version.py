@@ -160,6 +160,8 @@ def get_version_from_files(path: Path) -> Version | None:  # noqa: PLR0911
         return version
     if version := get_version_from_version_txt(path):
         return version
+    if version := get_version_from_build_gradle_kts(path):
+        return version
     return None
 
 
@@ -223,7 +225,7 @@ def get_version_from_cargo_toml(directory_path: Path) -> Version | None:
         directory_path: The path to the directory containing the Cargo.toml file.
 
     Returns:
-        A packaging.version.Version object if the version is found and valid,
+        A Version object if the version is found and valid,
         otherwise None. Returns None if the file doesn't exist, is unreadable,
         is invalid TOML, or lacks a valid package version string.
     """
@@ -281,6 +283,19 @@ def get_version_from_version_txt(path: Path) -> Version | None:
                 return Version.from_str(version)
             except ValueError:
                 return None
+    return None
+
+
+def get_version_from_build_gradle_kts(path: Path) -> Version | None:
+    build_gradle_kts_path = path / "build.gradle.kts"
+    if build_gradle_kts_path.exists():
+        with build_gradle_kts_path.open() as f:
+            content = f.read()
+            if res := re.search(r'version\s*=\s*"([^"]+)"', content):
+                try:
+                    return Version.from_str(res[1])
+                except ValueError:
+                    return None
     return None
 
 
@@ -438,10 +453,10 @@ def handle_version(args: VersionArgs) -> None:
     verbose = args.verbose
     path = args.path
     prev_version = get_current_version(path, verbose)
-    reclusive = args.recursive
+    recursive = args.recursive
 
     # 在版本选择前显示检测到的文件
-    detected_files = get_detected_files(path) if reclusive else get_root_detected_files(path)
+    detected_files = get_detected_files(path) if recursive else get_root_detected_files(path)
 
     if detected_files:
         console.print(f"Detected [cyan bold]{len(detected_files)}[/cyan bold] files to update:")
@@ -474,7 +489,7 @@ def handle_version(args: VersionArgs) -> None:
 
             # Type ignore needed for argparse Namespace to ChangelogArgs conversion
             handle_changelog(changelog_args, current_tag=target_tag)  # type: ignore[arg-type]
-        update_version_files(args, next_version, verbose, reclusive=reclusive)
+        update_version_files(args, next_version, verbose, recursive=recursive)
         execute_git_commands(args, next_version, verbose)
 
 
@@ -653,7 +668,7 @@ def update_version_files(
     next_version: Version,
     verbose: int,
     *,
-    reclusive: bool,
+    recursive: bool,
 ) -> None:
     # sourcery skip: merge-comparisons, merge-duplicate-blocks, remove-redundant-if
     next_version_str = str(next_version)
@@ -663,13 +678,13 @@ def update_version_files(
         console.print(f"Current path: [cyan bold]{current_path}")
 
     # 获取检测到的文件列表
-    detected_files = get_detected_files(args.path) if reclusive else get_root_detected_files(args.path)
+    detected_files = get_detected_files(args.path) if recursive else get_root_detected_files(args.path)
 
     # 更新文件
     for file_path in detected_files:
         # Check if we're in a test environment to avoid interactive prompts
         is_test_env = "pytest" in sys.modules or "unittest" in sys.modules
-        show_diff = not is_test_env and not reclusive
+        show_diff = not is_test_env and not recursive
         update_version_in_file(verbose, next_version_str, file_path.name, file_path, show_diff=show_diff)
 
 

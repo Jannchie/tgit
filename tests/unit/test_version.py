@@ -2186,7 +2186,7 @@ version = "2.0.0"
         )
         next_version = Version(2, 0, 0)
 
-        update_version_files(args, next_version, 1, reclusive=True)
+        update_version_files(args, next_version, 1, recursive=True)
 
         # Check verbose output
         mock_console.print.assert_any_call("Current path: [cyan bold]/test")
