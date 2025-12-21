@@ -41,8 +41,8 @@ MAX_DIFF_LINES = 1000
 NUMSTAT_PARTS = 3
 NAME_STATUS_PARTS = 2
 RENAME_STATUS_PARTS = 3
-SECRET_LEVEL_WARNING = "warning"
-SECRET_LEVEL_ERROR = "error"
+SENSITIVITY_LEVEL_WARNING = "warning"
+SENSITIVITY_LEVEL_ERROR = "error"
 
 
 # Initialize commit types from settings
@@ -71,7 +71,7 @@ class TemplateParams:
 class PotentialSecret(BaseModel):
     file: str
     description: str
-    level: str = SECRET_LEVEL_ERROR
+    level: str = SENSITIVITY_LEVEL_ERROR
 
 
 class CommitData(BaseModel):
@@ -219,14 +219,15 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
     return chat_completion.output_parsed
 
 
-def get_ai_command(specified_type: str | None = None) -> str | None:
-    current_dir = Path.cwd()
+def _get_repo_for_ai(current_dir: Path) -> git.Repo | None:
     try:
-        repo = git.Repo(current_dir, search_parent_directories=True)
+        return git.Repo(current_dir, search_parent_directories=True)
     except git.InvalidGitRepositoryError:
         print("[yellow]Not a git repository[/yellow]")
         return None
 
+
+def _build_diff_for_ai(repo: git.Repo) -> str | None:
     files_to_include, lock_files = get_filtered_diff_files(repo)
     if not files_to_include and not lock_files:
         print("[yellow]No files to commit, please add some files before using AI[/yellow]")
@@ -237,12 +238,15 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         diff += f"[INFO] The following lock files were modified but are not included in the diff: {', '.join(lock_files)}\n"
     if files_to_include:
         diff += repo.git.diff("--cached", "-M", "--", *files_to_include)
-    current_branch = repo.active_branch.name
 
     if not diff:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
         return None
 
+    return diff
+
+
+def _get_ai_response(diff: str, specified_type: str | None, current_branch: str) -> CommitData | None:
     try:
         resp = _generate_commit_with_ai(diff, specified_type, current_branch)
         if resp is None:
@@ -252,10 +256,18 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         print("[red]Could not connect to AI provider[/red]")
         print(e)
         return None
+    return resp
 
-    detected_secrets: list[PotentialSecret] = resp.secrets if resp.secrets else []
-    warning_secrets = [secret for secret in detected_secrets if secret.level == SECRET_LEVEL_WARNING]
-    error_secrets = [secret for secret in detected_secrets if secret.level != SECRET_LEVEL_WARNING]
+
+def _is_warning_level(level: str) -> bool:
+    return level.lower() == SENSITIVITY_LEVEL_WARNING
+
+
+def _confirm_detected_secrets(secrets: list[PotentialSecret]) -> bool:
+    if not secrets:
+        return True
+    warning_secrets = [secret for secret in secrets if _is_warning_level(secret.level)]
+    error_secrets = [secret for secret in secrets if not _is_warning_level(secret.level)]
     if warning_secrets:
         print("[yellow]Detected potential sensitive key names (no values):[/yellow]")
         for secret in warning_secrets:
@@ -264,15 +276,30 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         print("[red]Detected potential secrets in these files:[/red]")
         for secret in error_secrets:
             print(f"[red]- {secret.file}: {secret.description}[/red]")
-        proceed = click.confirm("Detected potential secrets. Continue with commit?", default=False)
-        if not proceed:
-            print("[yellow]Commit aborted. Please review sensitive content.[/yellow]")
-            return None
-    elif warning_secrets:
-        proceed = click.confirm("Detected potential sensitive key names. Continue with commit?", default=True)
-        if not proceed:
-            print("[yellow]Commit aborted. Please review sensitive content.[/yellow]")
-            return None
+        return click.confirm("Detected potential secrets. Continue with commit?", default=False)
+    if warning_secrets:
+        return click.confirm("Detected potential sensitive key names. Continue with commit?", default=True)
+    return True
+
+
+def get_ai_command(specified_type: str | None = None) -> str | None:
+    repo = _get_repo_for_ai(Path.cwd())
+    if repo is None:
+        return None
+
+    diff = _build_diff_for_ai(repo)
+    if diff is None:
+        return None
+
+    current_branch = repo.active_branch.name
+    resp = _get_ai_response(diff, specified_type, current_branch)
+    if resp is None:
+        return None
+
+    detected_secrets: list[PotentialSecret] = resp.secrets if resp.secrets else []
+    if not _confirm_detected_secrets(detected_secrets):
+        print("[yellow]Commit aborted. Please review sensitive content.[/yellow]")
+        return None
 
     # 如果用户指定了类型，则使用用户指定的类型，否则使用 AI 生成的类型
     commit_type = specified_type if specified_type is not None else resp.type
