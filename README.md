@@ -16,7 +16,7 @@ An elegant CLI tool that simplifies and streamlines your Git workflow with AI-po
 - Smart diff analysis that focuses on meaningful changes
 - Support for custom commit types and emojis
 - Breaking change detection
-- Secret scanning warnings that guard against committing sensitive data
+- Two-level secret scanning: prompts (default yes) for key names and blocking prompts for exposed values
 
 ### 📝 Automated Changelog
 

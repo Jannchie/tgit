@@ -79,6 +79,7 @@ class TestCommitData:
         data = CommitData(type="chore", scope=None, msg="update config", is_breaking=False, secrets=[secret])
         assert len(data.secrets) == 1
         assert data.secrets[0].file == "config.env"
+        assert data.secrets[0].level == "error"
 
 
 class TestGetChangedFilesFromStatus:
@@ -469,6 +470,44 @@ class TestGetAICommand:
 
         assert result == "git commit -m 'feat(auth): add login'"
         mock_confirm.assert_called_once_with("Detected potential secrets. Continue with commit?", default=False)
+        mock_get_commit_command.assert_called_once_with("feat", "auth", "add login", use_emoji=True, is_breaking=False)
+
+    @patch("tgit.commit.click.confirm")
+    @patch("tgit.commit.Path.cwd")
+    @patch("tgit.commit.git.Repo")
+    @patch("tgit.commit.get_filtered_diff_files")
+    @patch("tgit.commit._generate_commit_with_ai")
+    @patch("tgit.commit.get_commit_command")
+    @patch("tgit.commit.settings")
+    def test_get_ai_command_detected_secrets_warning_only(
+        self,
+        mock_settings,
+        mock_get_commit_command,
+        mock_generate,
+        mock_get_files,
+        mock_repo,
+        mock_cwd,
+        mock_confirm,
+    ):
+        """Test get_ai_command continues when only warning-level secrets are detected."""
+        mock_cwd.return_value = Path(tempfile.gettempdir())
+        mock_repo_instance = Mock()
+        mock_repo.return_value = mock_repo_instance
+        mock_get_files.return_value = (["src/file.py"], [])
+        mock_repo_instance.git.diff.return_value = "diff content"
+        mock_repo_instance.active_branch.name = "main"
+        mock_settings.commit.emoji = True
+
+        secret = PotentialSecret(file="src/file.py", description="api key name only", level="warning")
+        mock_commit_data = CommitData(type="feat", scope="auth", msg="add login", is_breaking=False, secrets=[secret])
+        mock_generate.return_value = mock_commit_data
+        mock_get_commit_command.return_value = "git commit -m 'feat(auth): add login'"
+        mock_confirm.return_value = True
+
+        result = get_ai_command()
+
+        assert result == "git commit -m 'feat(auth): add login'"
+        mock_confirm.assert_called_once_with("Detected potential sensitive key names. Continue with commit?", default=True)
         mock_get_commit_command.assert_called_once_with("feat", "auth", "add login", use_emoji=True, is_breaking=False)
 
     @patch("tgit.commit.Path.cwd")

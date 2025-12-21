@@ -36,7 +36,9 @@ Mark `is_breaking: true` only if changes:
 
 ### Secret Detection
 - Review the diff for potential secrets (API keys, tokens, passwords, private keys, credentials, etc.).
-- For every suspected secret, add an entry to the `secrets` array with the file path and a brief description of why it is sensitive.
+- For every suspected secret, add an entry to the `secrets` array with the file path, a brief description, and a `level`.
+- Use `level: "error"` when an actual secret value appears (tokens, passwords, private keys, credentials, connection strings, or high-entropy values).
+- Use `level: "warning"` when only key names or variable names appear without values (e.g., `API_KEY`, `SECRET_KEY`, `PASSWORD`).
 - If no secrets are found, return an empty array.
 
 ## Analysis Process
@@ -58,7 +60,8 @@ Return valid JSON matching this structure:
   "secrets": [
     {
       "file": "string",
-      "description": "string"
+      "description": "string",
+      "level": "warning|error"
     }
   ]
 }
@@ -69,7 +72,7 @@ Return valid JSON matching this structure:
 {"type": "feat", "scope": "auth", "msg": "add oauth2 login", "is_breaking": false, "secrets": []}
 {"type": "fix", "scope": "api", "msg": "handle null user responses", "is_breaking": false, "secrets": []}
 {"type": "refactor", "scope": null, "msg": "restructure project layout", "is_breaking": true, "secrets": []}
-{"type": "chore", "scope": "config", "msg": "update secrets storage", "is_breaking": false, "secrets": [{"file": "config/.env", "description": "detected value resembling api key"}]}
+{"type": "chore", "scope": "config", "msg": "update secrets storage", "is_breaking": false, "secrets": [{"file": "config/.env", "description": "detected value resembling api key", "level": "error"}]}
 ```
 
 Now analyze the provided diff and generate the commit message.

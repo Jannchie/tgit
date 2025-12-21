@@ -41,6 +41,8 @@ MAX_DIFF_LINES = 1000
 NUMSTAT_PARTS = 3
 NAME_STATUS_PARTS = 2
 RENAME_STATUS_PARTS = 3
+SECRET_LEVEL_WARNING = "warning"
+SECRET_LEVEL_ERROR = "error"
 
 
 # Initialize commit types from settings
@@ -69,6 +71,7 @@ class TemplateParams:
 class PotentialSecret(BaseModel):
     file: str
     description: str
+    level: str = SECRET_LEVEL_ERROR
 
 
 class CommitData(BaseModel):
@@ -251,11 +254,22 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
         return None
 
     detected_secrets: list[PotentialSecret] = resp.secrets if resp.secrets else []
-    if detected_secrets:
+    warning_secrets = [secret for secret in detected_secrets if secret.level == SECRET_LEVEL_WARNING]
+    error_secrets = [secret for secret in detected_secrets if secret.level != SECRET_LEVEL_WARNING]
+    if warning_secrets:
+        print("[yellow]Detected potential sensitive key names (no values):[/yellow]")
+        for secret in warning_secrets:
+            print(f"[yellow]- {secret.file}: {secret.description}[/yellow]")
+    if error_secrets:
         print("[red]Detected potential secrets in these files:[/red]")
-        for secret in detected_secrets:
+        for secret in error_secrets:
             print(f"[red]- {secret.file}: {secret.description}[/red]")
         proceed = click.confirm("Detected potential secrets. Continue with commit?", default=False)
+        if not proceed:
+            print("[yellow]Commit aborted. Please review sensitive content.[/yellow]")
+            return None
+    elif warning_secrets:
+        proceed = click.confirm("Detected potential sensitive key names. Continue with commit?", default=True)
         if not proceed:
             print("[yellow]Commit aborted. Please review sensitive content.[/yellow]")
             return None
