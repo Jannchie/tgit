@@ -1,3 +1,23 @@
+## v0.27.0
+
+[v0.26.0...v0.27.0](https://github.com/Jannchie/tgit/compare/v0.26.0...v0.27.0)
+
+### :sparkles: Features
+
+- **secrets**: add two-level secret scanning and handling - By [Jannchie](mailto:jannchie@gmail.com) in [fd4d632](https://github.com/Jannchie/tgit/commit/fd4d632)
+
+### :adhesive_bandage: Fixes
+
+- **version**: fix typo: reclusive -> recursive - By [Jannchie](mailto:jannchie@gmail.com) in [37c88f5](https://github.com/Jannchie/tgit/commit/37c88f5)
+
+### :art: Refactors
+
+- **ai**: refactor ai commit generation flow - By [Jannchie](mailto:jannchie@gmail.com) in [dd3ac63](https://github.com/Jannchie/tgit/commit/dd3ac63)
+
+### :memo: Documentation
+
+- **readme**: mention secret scanning warnings - By [Jannchie](mailto:jannchie@gmail.com) in [10037b6](https://github.com/Jannchie/tgit/commit/10037b6)
+
 ## v0.26.0
 
 [v0.25.0...v0.26.0](https://github.com/Jannchie/tgit/compare/v0.25.0...v0.26.0)
