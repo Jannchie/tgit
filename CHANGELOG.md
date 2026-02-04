@@ -1,3 +1,19 @@
+## v0.28.0
+
+[v0.27.0...v0.28.0](https://github.com/Jannchie/tgit/compare/v0.27.0...v0.28.0)
+
+### :sparkles: Features
+
+- **version**: add --no-recursive option to version command - By [Jannchie](mailto:jannchie@gmail.com) in [de77df7](https://github.com/Jannchie/tgit/commit/de77df7)
+
+### :memo: Documentation
+
+- **contributing**: add repository guidelines document - By [Jannchie](mailto:jannchie@gmail.com) in [96dd706](https://github.com/Jannchie/tgit/commit/96dd706)
+
+### :wrench: Chores
+
+- update dependency lock file - By [Jannchie](mailto:jannchie@gmail.com) in [20eaaac](https://github.com/Jannchie/tgit/commit/20eaaac)
+
 ## v0.27.0
 
 [v0.26.0...v0.27.0](https://github.com/Jannchie/tgit/compare/v0.26.0...v0.27.0)
