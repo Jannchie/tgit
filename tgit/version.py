@@ -840,7 +840,12 @@ def execute_git_commands(args: VersionArgs, next_version: Version, verbose: int)
 @click.option("--no-commit", is_flag=True, help="do not commit the changes")
 @click.option("--no-tag", is_flag=True, help="do not create a tag")
 @click.option("--no-push", is_flag=True, help="do not push the changes")
-@click.option("-r", "--recursive", is_flag=True, help="bump all packages in the monorepo")
+@click.option(
+    "-r/-R",
+    "--recursive/--no-recursive",
+    default=True,
+    help="bump all packages in the monorepo (use --no-recursive to limit to root)",
+)
 @click.option("-p", "--patch", is_flag=True, help="patch version")
 @click.option("-m", "--minor", is_flag=True, help="minor version")
 @click.option("-M", "--major", is_flag=True, help="major version")

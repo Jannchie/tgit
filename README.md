@@ -120,6 +120,9 @@ tgit changelog --to v2.0.0
 # Interactive version bump
 tgit version
 
+# Limit to root only (disable recursive bump)
+tgit version --no-recursive
+
 # Bump specific version type
 tgit version --patch
 tgit version --minor

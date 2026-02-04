@@ -1953,6 +1953,8 @@ class TestCliCommand:
 
         assert result.exit_code == 0
         mock_handle_version.assert_called_once()
+        args = mock_handle_version.call_args[0][0]
+        assert args.recursive is True
 
     def test_version_command_mutually_exclusive_options(self):
         """Test version command with mutually exclusive options."""
@@ -1979,6 +1981,17 @@ class TestCliCommand:
         assert args.no_push is True
         assert args.recursive is True
         assert args.patch is True
+
+    @patch("tgit.version.handle_version")
+    def test_version_command_no_recursive(self, mock_handle_version):
+        """Test version command with non-recursive option."""
+        runner = CliRunner()
+        result = runner.invoke(version, ["--no-recursive"])
+
+        assert result.exit_code == 0
+        mock_handle_version.assert_called_once()
+        args = mock_handle_version.call_args[0][0]
+        assert args.recursive is False
 
 
 class TestRemainingEdgeCases:
