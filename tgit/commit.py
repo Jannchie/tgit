@@ -38,6 +38,9 @@ BREAKING_OPT = click.option("-b", "--breaking", is_flag=True, help="breaking cha
 AI_OPT = click.option("-a", "--ai", is_flag=True, help="use ai")
 
 MAX_DIFF_LINES = 1000
+MAX_DIFF_SECTION_CHARS = 20000
+TRUNCATED_DIFF_HEAD_CHARS = 6000
+TRUNCATED_DIFF_TAIL_CHARS = 4000
 NUMSTAT_PARTS = 3
 NAME_STATUS_PARTS = 2
 RENAME_STATUS_PARTS = 3
@@ -136,23 +139,64 @@ def get_file_change_sizes(repo: git.Repo) -> dict[str, int]:
 def get_filtered_diff_files(repo: git.Repo) -> tuple[list[str], list[str]]:
     """获取过滤后的差异文件列表"""
     all_changed_files = get_changed_files_from_status(repo)
-    file_sizes = get_file_change_sizes(repo)
 
     files_to_include: list[str] = []
     lock_files: list[str] = []
 
-    # 过滤文件
     for filename in sorted(all_changed_files):
         if filename.endswith(".lock"):
             lock_files.append(filename)
             continue
 
-        # 检查文件大小（如果有统计信息）
-        total_changes = file_sizes.get(filename, 0)
-        if total_changes <= MAX_DIFF_LINES:
-            files_to_include.append(filename)
+        files_to_include.append(filename)
 
     return files_to_include, lock_files
+
+
+def _split_diff_sections(diff: str) -> list[str]:
+    """Split a git diff into per-file sections."""
+    if not diff:
+        return []
+
+    sections: list[str] = []
+    current_section: list[str] = []
+
+    for line in diff.splitlines(keepends=True):
+        if line.startswith("diff --git ") and current_section:
+            sections.append("".join(current_section))
+            current_section = [line]
+            continue
+        current_section.append(line)
+
+    if current_section:
+        sections.append("".join(current_section))
+
+    return sections
+
+
+def _truncate_diff_section(diff_section: str) -> str:
+    """Trim oversized single-file diffs while keeping the head and tail."""
+    section_line_count = diff_section.count("\n")
+    if section_line_count <= MAX_DIFF_LINES and len(diff_section) <= MAX_DIFF_SECTION_CHARS:
+        return diff_section
+
+    head = diff_section[:TRUNCATED_DIFF_HEAD_CHARS].rstrip("\n")
+    tail = diff_section[-TRUNCATED_DIFF_TAIL_CHARS:].lstrip("\n")
+    omitted_chars = len(diff_section) - len(head) - len(tail)
+
+    if omitted_chars <= 0:
+        return diff_section
+
+    omission_notice = f"[INFO] Middle of this file diff omitted: {omitted_chars} characters omitted."
+    return f"{head}\n\n{omission_notice}\n\n{tail}"
+
+
+def _truncate_large_diff_sections(diff: str) -> str:
+    """Truncate oversized sections in a multi-file git diff."""
+    sections = _split_diff_sections(diff)
+    if not sections:
+        return diff
+    return "".join(_truncate_diff_section(section) for section in sections)
 
 
 def _import_openai():  # type: ignore[misc]  # noqa: ANN202
@@ -237,7 +281,8 @@ def _build_diff_for_ai(repo: git.Repo) -> str | None:
     if lock_files:
         diff += f"[INFO] The following lock files were modified but are not included in the diff: {', '.join(lock_files)}\n"
     if files_to_include:
-        diff += repo.git.diff("--cached", "-M", "--", *files_to_include)
+        raw_diff = repo.git.diff("--cached", "-M", "--", *files_to_include)
+        diff += _truncate_large_diff_sections(raw_diff)
 
     if not diff:
         print("[yellow]No changes to commit, please add some changes before using AI[/yellow]")
@@ -296,7 +341,7 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
     if resp is None:
         return None
 
-    detected_secrets: list[PotentialSecret] = resp.secrets if resp.secrets else []
+    detected_secrets: list[PotentialSecret] = resp.secrets or []
     if not _confirm_detected_secrets(detected_secrets):
         print("[yellow]Commit aborted. Please review sensitive content.[/yellow]")
         return None

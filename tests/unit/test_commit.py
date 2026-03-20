@@ -10,8 +10,12 @@ from click.testing import CliRunner
 from tgit.commit import (
     CommitArgs,
     CommitData,
+    MAX_DIFF_SECTION_CHARS,
     PotentialSecret,
+    TRUNCATED_DIFF_HEAD_CHARS,
+    TRUNCATED_DIFF_TAIL_CHARS,
     TemplateParams,
+    _build_diff_for_ai,
     get_changed_files_from_status,
     get_file_change_sizes,
     get_filtered_diff_files,
@@ -19,13 +23,11 @@ from tgit.commit import (
     _check_openai_availability,
     _create_openai_client,
     _generate_commit_with_ai,
+    _truncate_diff_section,
     get_ai_command,
     handle_commit,
     commit,
     MAX_DIFF_LINES,
-    NUMSTAT_PARTS,
-    NAME_STATUS_PARTS,
-    RENAME_STATUS_PARTS,
 )
 
 
@@ -170,11 +172,9 @@ class TestGetFilteredDiffFiles:
     """Test get_filtered_diff_files function."""
 
     @patch("tgit.commit.get_changed_files_from_status")
-    @patch("tgit.commit.get_file_change_sizes")
-    def test_get_filtered_diff_files_normal_files(self, mock_get_sizes, mock_get_files):
+    def test_get_filtered_diff_files_normal_files(self, mock_get_files):
         """Test filtering diff files with normal files."""
         mock_get_files.return_value = {"src/file1.py", "src/file2.py", "package.lock"}
-        mock_get_sizes.return_value = {"src/file1.py": 100, "src/file2.py": 50}
 
         mock_repo = Mock()
         files_to_include, lock_files = get_filtered_diff_files(mock_repo)
@@ -183,30 +183,81 @@ class TestGetFilteredDiffFiles:
         assert lock_files == ["package.lock"]
 
     @patch("tgit.commit.get_changed_files_from_status")
-    @patch("tgit.commit.get_file_change_sizes")
-    def test_get_filtered_diff_files_large_files(self, mock_get_sizes, mock_get_files):
-        """Test filtering out large files."""
+    def test_get_filtered_diff_files_large_files(self, mock_get_files):
+        """Test keeping large files for later truncation."""
         mock_get_files.return_value = {"src/small.py", "src/large.py"}
-        mock_get_sizes.return_value = {"src/small.py": 100, "src/large.py": MAX_DIFF_LINES + 1}
 
         mock_repo = Mock()
         files_to_include, lock_files = get_filtered_diff_files(mock_repo)
 
-        assert files_to_include == ["src/small.py"]
+        assert files_to_include == ["src/large.py", "src/small.py"]
         assert lock_files == []
 
     @patch("tgit.commit.get_changed_files_from_status")
-    @patch("tgit.commit.get_file_change_sizes")
-    def test_get_filtered_diff_files_no_size_info(self, mock_get_sizes, mock_get_files):
+    def test_get_filtered_diff_files_no_size_info(self, mock_get_files):
         """Test filtering files without size information."""
         mock_get_files.return_value = {"src/file1.py", "src/file2.py"}
-        mock_get_sizes.return_value = {"src/file1.py": 100}  # Missing file2.py
 
         mock_repo = Mock()
         files_to_include, lock_files = get_filtered_diff_files(mock_repo)
 
-        assert files_to_include == ["src/file1.py", "src/file2.py"]  # file2.py included with size 0
+        assert files_to_include == ["src/file1.py", "src/file2.py"]
         assert lock_files == []
+
+
+class TestDiffTruncation:
+    """Test diff truncation helpers."""
+
+    def test_truncate_diff_section_large_added_file(self):
+        """Test truncating a large added-file diff section."""
+        diff_section = """diff --git a/src/new_file.py b/src/new_file.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/new_file.py
+@@ -0,0 +1,3 @@
++start-line
+""" + ("x" * (MAX_DIFF_SECTION_CHARS + 100)) + """
++end-line
+"""
+
+        result = _truncate_diff_section(diff_section)
+
+        assert "[INFO] Middle of this file diff omitted:" in result
+        assert "characters omitted." in result
+        assert "diff --git a/src/new_file.py b/src/new_file.py" in result
+        assert "end-line" in result
+
+    @patch("tgit.commit.get_filtered_diff_files")
+    def test_build_diff_for_ai_truncates_large_added_file(self, mock_get_files):
+        """Test building AI diff with a truncated large added file."""
+        mock_get_files.return_value = (["src/new_file.py"], ["pnpm-lock.yaml.lock"])
+        mock_repo = Mock()
+
+        with (
+            patch("tgit.commit.MAX_DIFF_SECTION_CHARS", 80),
+            patch("tgit.commit.MAX_DIFF_LINES", 10_000),
+            patch("tgit.commit.TRUNCATED_DIFF_HEAD_CHARS", 30),
+            patch("tgit.commit.TRUNCATED_DIFF_TAIL_CHARS", 25),
+        ):
+            mock_repo.git.diff.return_value = """diff --git a/src/new_file.py b/src/new_file.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/new_file.py
+@@ -0,0 +1,4 @@
++alpha
++beta
++""" + ("x" * 120) + """
++omega
+"""
+
+            result = _build_diff_for_ai(mock_repo)
+
+        assert result is not None
+        assert "[INFO] The following lock files were modified but are not included in the diff: pnpm-lock.yaml.lock" in result
+        assert "[INFO] Middle of this file diff omitted:" in result
+        assert "omega" in result
 
 
 class TestOpenAIImport:
@@ -422,7 +473,16 @@ class TestGetAICommand:
     @patch("tgit.commit._generate_commit_with_ai")
     @patch("tgit.commit.get_commit_command")
     @patch("tgit.commit.settings")
-    def test_get_ai_command_detected_secrets_abort(self, mock_settings, mock_get_commit_command, mock_generate, mock_get_files, mock_repo, mock_cwd, mock_confirm):
+    def test_get_ai_command_detected_secrets_abort(
+        self,
+        mock_settings,
+        mock_get_commit_command,
+        mock_generate,
+        mock_get_files,
+        mock_repo,
+        mock_cwd,
+        mock_confirm,
+    ):
         """Test get_ai_command aborts when secrets are detected and user declines."""
         mock_cwd.return_value = Path(tempfile.gettempdir())
         mock_repo_instance = Mock()
@@ -450,7 +510,16 @@ class TestGetAICommand:
     @patch("tgit.commit._generate_commit_with_ai")
     @patch("tgit.commit.get_commit_command")
     @patch("tgit.commit.settings")
-    def test_get_ai_command_detected_secrets_continue(self, mock_settings, mock_get_commit_command, mock_generate, mock_get_files, mock_repo, mock_cwd, mock_confirm):
+    def test_get_ai_command_detected_secrets_continue(
+        self,
+        mock_settings,
+        mock_get_commit_command,
+        mock_generate,
+        mock_get_files,
+        mock_repo,
+        mock_cwd,
+        mock_confirm,
+    ):
         """Test get_ai_command continues when secrets are detected and user agrees."""
         mock_cwd.return_value = Path(tempfile.gettempdir())
         mock_repo_instance = Mock()
