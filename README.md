@@ -1,12 +1,24 @@
 # 🚀 TGIT - Tool for Git Interaction Temptation
 
 [![CodeTime Badge](https://shields.jannchie.com/endpoint?style=social&color=222&url=https%3A%2F%2Fapi.codetime.dev%2Fv3%2Fusers%2Fshield%3Fuid%3D2%26project%3Dtgit)](https://codetime.dev)
+[![CI](https://github.com/Jannchie/tgit/actions/workflows/ci.yml/badge.svg)](https://github.com/Jannchie/tgit/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Jannchie/tgit/graph/badge.svg?token=YQE0LPE7JX)](https://codecov.io/gh/Jannchie/tgit)
 [![PyPI version](https://badge.fury.io/py/tgit.svg)](https://badge.fury.io/py/tgit)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An elegant CLI tool that simplifies and streamlines your Git workflow with AI-powered commit messages, automated changelog generation, and intelligent version management.
+TGIT is an AI-powered Git CLI for commit messages, changelog generation, and semantic versioning.
+
+- Generate conventional commits from staged changes
+- Build changelogs from commit history
+- Bump versions across common project files
+- Manage settings from `.tgit.yaml` or an interactive CLI
+
+## 🔗 Links
+
+- Repository: <https://github.com/Jannchie/tgit>
+- Issues: <https://github.com/Jannchie/tgit/issues>
+- Changelog: <https://github.com/Jannchie/tgit/blob/main/CHANGELOG.md>
 
 ## ✨ Features
 
@@ -44,13 +56,24 @@ An elegant CLI tool that simplifies and streamlines your Git workflow with AI-po
 ### Installation
 
 ```bash
+uv tool install tgit
+```
+
+```bash
+pipx install tgit
+```
+
+```bash
 pip install tgit
 ```
 
 ### Basic Usage
 
 ```bash
-# AI-powered commit with automatic message generation
+# Configure TGIT
+tgit settings
+
+# Generate an AI-powered commit message from staged changes
 tgit commit
 
 # Generate changelog for current version
@@ -58,10 +81,11 @@ tgit changelog
 
 # Bump version and generate changelog
 tgit version
+```
 
 ### Configuration
 
-The easiest way to configure TGIT is through the interactive settings command:
+The recommended way to configure TGIT is through the interactive settings command:
 
 ```bash
 # Interactive configuration - recommended!
@@ -95,7 +119,7 @@ commit:
 
 ```bash
 # AI-powered commit
-tgit commit 
+tgit commit
 
 # Breaking change commit
 tgit commit --breaking "remove deprecated api"
@@ -151,11 +175,8 @@ tgit settings --show
 git clone https://github.com/Jannchie/tgit.git
 cd tgit
 
-# Install with uv
-uv pip install -e .
-
-# Install development dependencies
-uv pip install -e ".[dev]"
+# Install dependencies
+uv sync
 ```
 
 ### Testing
@@ -176,10 +197,10 @@ uv pip install -e ".[dev]"
 
 ```bash
 # Run linting
-ruff check .
+uv run ruff check .
 
 # Run formatting
-ruff format .
+uv run ruff format .
 
 # Build package
 uv build

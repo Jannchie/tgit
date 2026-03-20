@@ -1,7 +1,7 @@
 [project]
 name = "tgit"
 version = "0.29.0"
-description = "Tool for Git Interaction Temptation (tgit): An elegant CLI tool that simplifies and streamlines your Git workflow, making version control a breeze."
+description = "AI-powered Git CLI for commits, changelogs, and semantic versioning."
 authors = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
 dependencies = [
     "rich>=13.9.4",
@@ -15,17 +15,30 @@ dependencies = [
 ]
 readme = { content-type = "text/markdown", file = "README.md" }
 requires-python = ">= 3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Version Control",
+    "Topic :: Software Development :: Version Control :: Git",
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-keywords = ["git", "tool", "changelog", "version", "commit"]
-license = "MIT"
+keywords = ["git", "cli", "commit", "changelog", "version", "semver", "conventional-commits", "release"]
+
+[project.urls]
+Homepage = "https://github.com/Jannchie/tgit"
+Repository = "https://github.com/Jannchie/tgit"
+Issues = "https://github.com/Jannchie/tgit/issues"
+Changelog = "https://github.com/Jannchie/tgit/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]
@@ -42,7 +55,7 @@ allow-direct-references = true
 packages = ["tgit"]
 
 [project.scripts]
-tgit = "tgit:cli.app"
+tgit = "tgit.cli:app"
 
 [tool.ruff]
 line-length = 140
