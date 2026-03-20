@@ -22,7 +22,7 @@ console = get_console()
 with importlib.resources.path("tgit", "prompts") as prompt_path:
     env = Environment(loader=FileSystemLoader(prompt_path), autoescape=True)
 
-commit_types = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "wip"]
+commit_types = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "test", "ci"]
 commit_file = "commit.txt"
 commit_prompt_template = env.get_template("commit.txt")
 DEFAULT_MAX_OUTPUT_TOKENS = 256
@@ -321,7 +321,7 @@ def _stage_all_changes_if_confirmed(repo: git.Repo) -> bool:
 def _get_commit_choices() -> list[str]:
     """Return all supported commit type choices."""
     prefix = ["", "!"]
-    return ["".join(data) for data in itertools.product(commit_types, prefix)] + ["ci", "test", "version"]
+    return ["".join(data) for data in itertools.product(commit_types, prefix)] + ["version"]
 
 
 def _get_manual_commit_command(args: CommitArgs, choices: list[str]) -> str | None:

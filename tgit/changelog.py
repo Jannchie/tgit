@@ -278,7 +278,7 @@ def group_commits_by_type(commits: list[TGITCommit]) -> dict[str, list[TGITCommi
 
 
 def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: str, to_ref: str, remote_uri: str | None = None) -> str:
-    order = ["breaking", "feat", "fix", "refactor", "perf", "style", "docs", "chore"]
+    order = ["breaking", "feat", "fix", "refactor", "perf", "style", "docs", "test", "ci", "chore"]
     names = [
         ":rocket: Breaking Changes",
         ":sparkles: Features",
@@ -287,6 +287,8 @@ def generate_changelog(commits_by_type: dict[str, list[TGITCommit]], from_ref: s
         ":zap: Performance Improvements",
         ":lipstick: Styles",
         ":memo: Documentation",
+        ":test_tube: Tests",
+        ":construction_worker: CI",
         ":wrench: Chores",
     ]
     out_str = ""
