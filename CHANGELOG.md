@@ -1,3 +1,15 @@
+## v0.29.0
+
+[v0.28.0...v0.29.0](https://github.com/Jannchie/tgit/compare/v0.28.0...v0.29.0)
+
+### :sparkles: Features
+
+- **commit**: prompt to stage all changes before commit - By [Jannchie](mailto:jannchie@gmail.com) in [199dbc2](https://github.com/Jannchie/tgit/commit/199dbc2)
+
+### :wrench: Chores
+
+- **tools**: add test and ci types, update prompts and model - By [Jannchie](mailto:jannchie@gmail.com) in [cca3d98](https://github.com/Jannchie/tgit/commit/cca3d98)
+
 ## v0.28.0
 
 [v0.27.0...v0.28.0](https://github.com/Jannchie/tgit/compare/v0.27.0...v0.28.0)
