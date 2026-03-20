@@ -271,6 +271,88 @@ def _get_repo_for_ai(current_dir: Path) -> git.Repo | None:
         return None
 
 
+def _has_staged_changes(status_output: str) -> bool:
+    """Return True when git status output contains staged changes."""
+    return any(line and line[0] not in {" ", "?"} for line in status_output.splitlines())
+
+
+def _get_changed_files_from_status_output(status_output: str) -> list[str]:
+    """Extract changed file paths from `git status --short` output."""
+    changed_files: list[str] = []
+
+    for line in status_output.splitlines():
+        if len(line) < NAME_STATUS_PARTS + 1:
+            continue
+
+        path_info = line[3:]
+        if " -> " in path_info:
+            old_path, new_path = path_info.split(" -> ", maxsplit=1)
+            changed_files.extend([old_path, new_path])
+            continue
+
+        changed_files.append(path_info)
+
+    return sorted(set(changed_files))
+
+
+def _stage_all_changes_if_confirmed(repo: git.Repo) -> bool:
+    """Prompt to stage all changes when the repository has no staged changes."""
+    status_output = repo.git.status("--short", "--untracked-files=all")
+    if not status_output.strip() or _has_staged_changes(status_output):
+        return True
+
+    changed_files = _get_changed_files_from_status_output(status_output)
+    print("[yellow]No staged changes found, but the repository has modified files:[/yellow]")
+    for filename in changed_files:
+        print(f"[yellow]- {filename}[/yellow]")
+
+    should_stage_all = click.confirm(
+        "Stage all repository changes with 'git add .' and continue?",
+        default=True,
+    )
+    if not should_stage_all:
+        print("[yellow]Commit aborted. No staged changes to commit.[/yellow]")
+        return False
+
+    repo.git.add(".")
+    return True
+
+
+def _get_commit_choices() -> list[str]:
+    """Return all supported commit type choices."""
+    prefix = ["", "!"]
+    return ["".join(data) for data in itertools.product(commit_types, prefix)] + ["ci", "test", "version"]
+
+
+def _get_manual_commit_command(args: CommitArgs, choices: list[str]) -> str | None:
+    """Build the manual git commit command after validating the commit type."""
+    messages = args.message
+    commit_type = messages[0]
+    if commit_type not in choices:
+        print(f"Invalid type: {commit_type}")
+        print(f"Valid types: {choices}")
+        return None
+
+    if len(messages) > 2:  # noqa: PLR2004
+        commit_scope = messages[1]
+        commit_msg = " ".join(messages[2:])
+    else:
+        commit_scope = None
+        commit_msg = messages[1]
+
+    use_emoji = args.emoji
+    if use_emoji is False:
+        use_emoji = settings.commit.emoji
+
+    return get_commit_command(
+        commit_type,
+        commit_scope,
+        commit_msg,
+        use_emoji=use_emoji,
+        is_breaking=args.breaking,
+    )
+
+
 def _build_diff_for_ai(repo: git.Repo) -> str | None:
     files_to_include, lock_files = get_filtered_diff_files(repo)
     if not files_to_include and not lock_files:
@@ -331,6 +413,8 @@ def get_ai_command(specified_type: str | None = None) -> str | None:
     repo = _get_repo_for_ai(Path.cwd())
     if repo is None:
         return None
+    if not _stage_all_changes_if_confirmed(repo):
+        return None
 
     diff = _build_diff_for_ai(repo)
     if diff is None:
@@ -376,8 +460,7 @@ def commit(
 
 
 def handle_commit(args: CommitArgs) -> None:
-    prefix = ["", "!"]
-    choices = ["".join(data) for data in itertools.product(commit_types, prefix)] + ["ci", "test", "version"]
+    choices = _get_commit_choices()
 
     if args.ai or len(args.message) == 0:
         # 如果明确指定使用 AI
@@ -397,23 +480,14 @@ def handle_commit(args: CommitArgs) -> None:
         if not command:
             return
     else:
-        # 正常的提交流程
-        messages = args.message
-        commit_type = messages[0]
-        if len(messages) > 2:  # noqa: PLR2004
-            commit_scope = messages[1]
-            commit_msg = " ".join(messages[2:])
-        else:
-            commit_scope = None
-            commit_msg = messages[1]
-        if commit_type not in choices:
-            print(f"Invalid type: {commit_type}")
-            print(f"Valid types: {choices}")
+        command = _get_manual_commit_command(args, choices)
+        if not command:
             return
-        use_emoji = args.emoji
-        if use_emoji is False:
-            use_emoji = settings.commit.emoji
-        is_breaking = args.breaking
-        command = get_commit_command(commit_type, commit_scope, commit_msg, use_emoji=use_emoji, is_breaking=is_breaking)
+
+        repo = _get_repo_for_ai(Path.cwd())
+        if repo is None:
+            return
+        if not _stage_all_changes_if_confirmed(repo):
+            return
 
     run_command(settings, command)

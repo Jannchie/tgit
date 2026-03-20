@@ -16,6 +16,9 @@ from tgit.commit import (
     TRUNCATED_DIFF_TAIL_CHARS,
     TemplateParams,
     _build_diff_for_ai,
+    _get_changed_files_from_status_output,
+    _has_staged_changes,
+    _stage_all_changes_if_confirmed,
     get_changed_files_from_status,
     get_file_change_sizes,
     get_filtered_diff_files,
@@ -260,6 +263,65 @@ index 0000000..1111111
         assert "omega" in result
 
 
+class TestStageAllChanges:
+    """Test staging all repository changes when nothing is staged."""
+
+    def test_has_staged_changes(self):
+        """Test staged-change detection from porcelain status output."""
+        assert _has_staged_changes("M  src/file.py\n?? new_file.py") is True
+        assert _has_staged_changes(" M src/file.py\n?? new_file.py") is False
+        assert _has_staged_changes("") is False
+
+    def test_get_changed_files_from_status_output(self):
+        """Test extracting changed files from porcelain status output."""
+        status_output = " M src/file.py\n?? new_file.py\nR  old_name.py -> new_name.py"
+
+        result = _get_changed_files_from_status_output(status_output)
+
+        assert result == ["new_file.py", "new_name.py", "old_name.py", "src/file.py"]
+
+    @patch("tgit.commit.click.confirm")
+    @patch("tgit.commit.print")
+    def test_stage_all_changes_if_confirmed_accepts(self, mock_print, mock_confirm):
+        """Test staging all changes after user confirmation."""
+        mock_repo = Mock()
+        mock_repo.git.status.return_value = " M src/file.py\n?? new_file.py"
+        mock_confirm.return_value = True
+
+        result = _stage_all_changes_if_confirmed(mock_repo)
+
+        assert result is True
+        mock_repo.git.add.assert_called_once_with(".")
+        mock_confirm.assert_called_once_with("Stage all repository changes with 'git add .' and continue?", default=True)
+        mock_print.assert_any_call("[yellow]No staged changes found, but the repository has modified files:[/yellow]")
+        mock_print.assert_any_call("[yellow]- new_file.py[/yellow]")
+        mock_print.assert_any_call("[yellow]- src/file.py[/yellow]")
+
+    @patch("tgit.commit.click.confirm")
+    @patch("tgit.commit.print")
+    def test_stage_all_changes_if_confirmed_declines(self, mock_print, mock_confirm):
+        """Test aborting when user declines staging all changes."""
+        mock_repo = Mock()
+        mock_repo.git.status.return_value = " M src/file.py\n?? new_file.py"
+        mock_confirm.return_value = False
+
+        result = _stage_all_changes_if_confirmed(mock_repo)
+
+        assert result is False
+        mock_repo.git.add.assert_not_called()
+        mock_print.assert_any_call("[yellow]Commit aborted. No staged changes to commit.[/yellow]")
+
+    def test_stage_all_changes_if_confirmed_skips_when_staged_changes_exist(self):
+        """Test skipping the prompt when staged changes already exist."""
+        mock_repo = Mock()
+        mock_repo.git.status.return_value = "M  src/file.py\n?? new_file.py"
+
+        result = _stage_all_changes_if_confirmed(mock_repo)
+
+        assert result is True
+        mock_repo.git.add.assert_not_called()
+
+
 class TestOpenAIImport:
     """Test OpenAI import functions."""
 
@@ -425,13 +487,15 @@ class TestGetAICommand:
 
     @patch("tgit.commit.Path.cwd")
     @patch("tgit.commit.git.Repo")
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
     @patch("tgit.commit.get_filtered_diff_files")
-    def test_get_ai_command_no_files(self, mock_get_files, mock_repo, mock_cwd):
+    def test_get_ai_command_no_files(self, mock_get_files, mock_stage_all, mock_repo, mock_cwd):
         """Test get_ai_command when no files to commit."""
         mock_cwd.return_value = Path(tempfile.gettempdir())
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = ([], [])
+        mock_stage_all.return_value = True
 
         with patch("tgit.commit.print") as mock_print:
             result = get_ai_command()
@@ -441,16 +505,27 @@ class TestGetAICommand:
 
     @patch("tgit.commit.Path.cwd")
     @patch("tgit.commit.git.Repo")
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
     @patch("tgit.commit.get_filtered_diff_files")
     @patch("tgit.commit._generate_commit_with_ai")
     @patch("tgit.commit.get_commit_command")
     @patch("tgit.commit.settings")
-    def test_get_ai_command_success(self, mock_settings, mock_get_commit_command, mock_generate, mock_get_files, mock_repo, mock_cwd):
+    def test_get_ai_command_success(
+        self,
+        mock_settings,
+        mock_get_commit_command,
+        mock_generate,
+        mock_get_files,
+        mock_stage_all,
+        mock_repo,
+        mock_cwd,
+    ):
         """Test successful get_ai_command."""
         mock_cwd.return_value = Path(tempfile.gettempdir())
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = (["src/file.py"], ["package.lock"])
+        mock_stage_all.return_value = True
 
         mock_repo_instance.git.diff.return_value = "diff content"
         mock_repo_instance.active_branch.name = "main"
@@ -469,6 +544,7 @@ class TestGetAICommand:
     @patch("tgit.commit.click.confirm")
     @patch("tgit.commit.Path.cwd")
     @patch("tgit.commit.git.Repo")
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
     @patch("tgit.commit.get_filtered_diff_files")
     @patch("tgit.commit._generate_commit_with_ai")
     @patch("tgit.commit.get_commit_command")
@@ -479,6 +555,7 @@ class TestGetAICommand:
         mock_get_commit_command,
         mock_generate,
         mock_get_files,
+        mock_stage_all,
         mock_repo,
         mock_cwd,
         mock_confirm,
@@ -488,6 +565,7 @@ class TestGetAICommand:
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = (["src/file.py"], [])
+        mock_stage_all.return_value = True
         mock_repo_instance.git.diff.return_value = "diff content"
         mock_repo_instance.active_branch.name = "main"
         mock_settings.commit.emoji = True
@@ -506,6 +584,7 @@ class TestGetAICommand:
     @patch("tgit.commit.click.confirm")
     @patch("tgit.commit.Path.cwd")
     @patch("tgit.commit.git.Repo")
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
     @patch("tgit.commit.get_filtered_diff_files")
     @patch("tgit.commit._generate_commit_with_ai")
     @patch("tgit.commit.get_commit_command")
@@ -516,6 +595,7 @@ class TestGetAICommand:
         mock_get_commit_command,
         mock_generate,
         mock_get_files,
+        mock_stage_all,
         mock_repo,
         mock_cwd,
         mock_confirm,
@@ -525,6 +605,7 @@ class TestGetAICommand:
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = (["src/file.py"], [])
+        mock_stage_all.return_value = True
         mock_repo_instance.git.diff.return_value = "diff content"
         mock_repo_instance.active_branch.name = "main"
         mock_settings.commit.emoji = True
@@ -544,6 +625,7 @@ class TestGetAICommand:
     @patch("tgit.commit.click.confirm")
     @patch("tgit.commit.Path.cwd")
     @patch("tgit.commit.git.Repo")
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
     @patch("tgit.commit.get_filtered_diff_files")
     @patch("tgit.commit._generate_commit_with_ai")
     @patch("tgit.commit.get_commit_command")
@@ -554,6 +636,7 @@ class TestGetAICommand:
         mock_get_commit_command,
         mock_generate,
         mock_get_files,
+        mock_stage_all,
         mock_repo,
         mock_cwd,
         mock_confirm,
@@ -563,6 +646,7 @@ class TestGetAICommand:
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = (["src/file.py"], [])
+        mock_stage_all.return_value = True
         mock_repo_instance.git.diff.return_value = "diff content"
         mock_repo_instance.active_branch.name = "main"
         mock_settings.commit.emoji = True
@@ -581,14 +665,16 @@ class TestGetAICommand:
 
     @patch("tgit.commit.Path.cwd")
     @patch("tgit.commit.git.Repo")
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
     @patch("tgit.commit.get_filtered_diff_files")
     @patch("tgit.commit._generate_commit_with_ai")
-    def test_get_ai_command_ai_failure(self, mock_generate, mock_get_files, mock_repo, mock_cwd):
+    def test_get_ai_command_ai_failure(self, mock_generate, mock_get_files, mock_stage_all, mock_repo, mock_cwd):
         """Test get_ai_command when AI generation fails."""
         mock_cwd.return_value = Path(tempfile.gettempdir())
         mock_repo_instance = Mock()
         mock_repo.return_value = mock_repo_instance
         mock_get_files.return_value = (["src/file.py"], [])
+        mock_stage_all.return_value = True
 
         mock_repo_instance.git.diff.return_value = "diff content"
         mock_repo_instance.active_branch.name = "main"
@@ -599,6 +685,20 @@ class TestGetAICommand:
 
             assert result is None
             mock_print.assert_any_call("[red]Could not connect to AI provider[/red]")
+
+    @patch("tgit.commit.Path.cwd")
+    @patch("tgit.commit.git.Repo")
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
+    def test_get_ai_command_aborts_when_stage_all_declined(self, mock_stage_all, mock_repo, mock_cwd):
+        """Test get_ai_command aborts before building diff when staging is declined."""
+        mock_cwd.return_value = Path(tempfile.gettempdir())
+        mock_repo.return_value = Mock()
+        mock_stage_all.return_value = False
+
+        result = get_ai_command()
+
+        assert result is None
+        mock_stage_all.assert_called_once()
 
 
 class TestHandleCommit:
@@ -661,13 +761,24 @@ class TestHandleCommit:
 
             mock_print.assert_any_call("Invalid type: invalid")
 
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
+    @patch("tgit.commit._get_repo_for_ai")
     @patch("tgit.commit.get_commit_command")
     @patch("tgit.commit.run_command")
     @patch("tgit.commit.settings")
-    def test_handle_commit_full_message(self, mock_settings, mock_run_command, mock_get_commit_command):
+    def test_handle_commit_full_message(
+        self,
+        mock_settings,
+        mock_run_command,
+        mock_get_commit_command,
+        mock_get_repo,
+        mock_stage_all,
+    ):
         """Test handle_commit with full message."""
         mock_settings.commit.emoji = False
         mock_get_commit_command.return_value = "git commit -m 'feat: add feature'"
+        mock_get_repo.return_value = Mock()
+        mock_stage_all.return_value = True
 
         args = CommitArgs(message=["feat", "add feature"], emoji=False, breaking=False, ai=False)
         handle_commit(args)
@@ -676,13 +787,24 @@ class TestHandleCommit:
         # run_command is called with settings and command
         mock_run_command.assert_called_once_with(mock_settings, "git commit -m 'feat: add feature'")
 
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
+    @patch("tgit.commit._get_repo_for_ai")
     @patch("tgit.commit.get_commit_command")
     @patch("tgit.commit.run_command")
     @patch("tgit.commit.settings")
-    def test_handle_commit_with_scope(self, mock_settings, mock_run_command, mock_get_commit_command):
+    def test_handle_commit_with_scope(
+        self,
+        mock_settings,
+        mock_run_command,
+        mock_get_commit_command,
+        mock_get_repo,
+        mock_stage_all,
+    ):
         """Test handle_commit with scope."""
         mock_settings.commit.emoji = False
         mock_get_commit_command.return_value = "git commit -m 'feat(auth): add login'"
+        mock_get_repo.return_value = Mock()
+        mock_stage_all.return_value = True
 
         args = CommitArgs(message=["feat", "auth", "add", "login"], emoji=False, breaking=False, ai=False)
         handle_commit(args)
@@ -691,13 +813,24 @@ class TestHandleCommit:
         # run_command is called with settings and command
         mock_run_command.assert_called_once_with(mock_settings, "git commit -m 'feat(auth): add login'")
 
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
+    @patch("tgit.commit._get_repo_for_ai")
     @patch("tgit.commit.get_commit_command")
     @patch("tgit.commit.run_command")
     @patch("tgit.commit.settings")
-    def test_handle_commit_with_emoji_override(self, mock_settings, mock_run_command, mock_get_commit_command):
+    def test_handle_commit_with_emoji_override(
+        self,
+        mock_settings,
+        mock_run_command,
+        mock_get_commit_command,
+        mock_get_repo,
+        mock_stage_all,
+    ):
         """Test handle_commit with emoji override."""
         mock_settings.commit.emoji = False
         mock_get_commit_command.return_value = "git commit -m '✨ feat: add feature'"
+        mock_get_repo.return_value = Mock()
+        mock_stage_all.return_value = True
 
         args = CommitArgs(message=["feat", "add feature"], emoji=True, breaking=False, ai=False)
         handle_commit(args)
@@ -714,6 +847,30 @@ class TestHandleCommit:
             handle_commit(args)
 
             mock_print.assert_any_call("Invalid type: invalid")
+
+    @patch("tgit.commit._stage_all_changes_if_confirmed")
+    @patch("tgit.commit._get_repo_for_ai")
+    @patch("tgit.commit.get_commit_command")
+    @patch("tgit.commit.run_command")
+    @patch("tgit.commit.settings")
+    def test_handle_commit_aborts_when_stage_all_declined(
+        self,
+        mock_settings,
+        mock_run_command,
+        mock_get_commit_command,
+        mock_get_repo,
+        mock_stage_all,
+    ):
+        """Test handle_commit aborts manual commit when staging is declined."""
+        mock_settings.commit.emoji = False
+        mock_get_commit_command.return_value = "git commit -m 'feat: add feature'"
+        mock_get_repo.return_value = Mock()
+        mock_stage_all.return_value = False
+
+        args = CommitArgs(message=["feat", "add feature"], emoji=False, breaking=False, ai=False)
+        handle_commit(args)
+
+        mock_run_command.assert_not_called()
 
 
 class TestCommitFunction:
