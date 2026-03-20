@@ -1,2 +1,4 @@
-python -m build
-twine upload dist/*
+#!/bin/bash
+set -e
+uv build
+uv publish
