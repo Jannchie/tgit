@@ -1,6 +1,7 @@
 import click
 from rich import print
 
+from tgit.constants import REASONING_EFFORT_CHOICES
 from tgit.utils import set_global_settings
 
 
@@ -26,7 +27,7 @@ def settings_command(
         print("Use --interactive or -i for interactive configuration")
         raise click.Abort
 
-    available_keys = ["apiKey", "apiUrl", "model", "show_command", "skip_confirm"]
+    available_keys = ["apiKey", "apiUrl", "model", "reasoning_effort", "show_command", "skip_confirm"]
 
     if key not in available_keys:
         print(f"Key {key} is not valid. Available keys: {', '.join(available_keys)}")
@@ -40,6 +41,18 @@ def settings_command(
             true_value = False
         else:
             print(f"Invalid boolean value for {key}. Use true/false, 1/0, yes/no, or on/off")
+            raise click.Abort
+    elif key == "reasoning_effort":
+        normalized_value = value.lower()
+        if normalized_value in ["auto", "default"]:
+            true_value = ""
+        elif normalized_value in REASONING_EFFORT_CHOICES:
+            true_value = normalized_value
+        else:
+            print(
+                "Invalid reasoning effort. Use auto/default or one of: "
+                + ", ".join(REASONING_EFFORT_CHOICES)
+            )
             raise click.Abort
 
     set_global_settings(key, true_value)

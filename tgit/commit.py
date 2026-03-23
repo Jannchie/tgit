@@ -93,15 +93,33 @@ def _supports_reasoning(model: str) -> bool:
     return any(hint in model_lower for hint in REASONING_MODEL_HINTS)
 
 
-def _get_reasoning_effort(model: str) -> str:
-    """Return a model-compatible default reasoning effort."""
+def _get_supported_reasoning_efforts(model: str) -> tuple[str, ...] | None:
+    """Return supported reasoning.effort values for known model families."""
+    if not model:
+        return None
+
     model_lower = model.lower()
+    if model_lower.startswith("gpt-5.4-pro"):
+        return ("medium", "high", "xhigh")
+    if model_lower.startswith("gpt-5.4"):
+        return ("none", "low", "medium", "high", "xhigh")
+    if model_lower.startswith("gpt-5.1"):
+        return ("none", "low", "medium", "high")
+    if model_lower.startswith("gpt-5"):
+        return ("minimal", "low", "medium", "high")
+    return None
 
-    # GPT-5 family models reject "minimal" and require the newer effort values.
-    if "gpt-5" in model_lower:
-        return "low"
 
-    return "minimal"
+def _validate_reasoning_effort_for_model(model: str, effort: str) -> None:
+    """Raise when a configured reasoning effort is unsupported for the selected model."""
+    supported_efforts = _get_supported_reasoning_efforts(model)
+    if supported_efforts and effort not in supported_efforts:
+        supported_values = ", ".join(supported_efforts)
+        error_message = (
+            f"Configured reasoning_effort '{effort}' is not supported by model '{model}'. "
+            f"Supported values: {supported_values}"
+        )
+        raise click.ClickException(error_message)
 
 
 def get_changed_files_from_status(repo: git.Repo) -> set[str]:
@@ -264,8 +282,9 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
             "max_output_tokens": DEFAULT_MAX_OUTPUT_TOKENS,
             "text_format": CommitData,
         }
-        if _supports_reasoning(model_name):
-            request_kwargs["reasoning"] = {"effort": _get_reasoning_effort(model_name)}
+        if _supports_reasoning(model_name) and settings.reasoning_effort:
+            _validate_reasoning_effort_for_model(model_name, settings.reasoning_effort)
+            request_kwargs["reasoning"] = {"effort": settings.reasoning_effort}
 
         chat_completion = client.responses.parse(
             **request_kwargs,

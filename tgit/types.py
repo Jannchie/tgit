@@ -34,5 +34,6 @@ class TGitSettings:
     api_key: str = ""
     api_url: str = ""
     model: str = DEFAULT_MODEL
+    reasoning_effort: str = ""
     show_command: bool = True
     skip_confirm: bool = False

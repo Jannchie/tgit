@@ -93,34 +93,58 @@ class TestViewCurrentSettings:
 
     @patch("tgit.interactive_settings.load_global_settings")
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
+    @patch("tgit.interactive_settings._get_global_settings_path")
+    @patch("tgit.interactive_settings._get_workspace_settings_path")
     @patch("tgit.interactive_settings.print")
     @patch("builtins.input")
     @patch("tgit.interactive_settings.json.dumps")
-    def test_view_current_settings_empty(self, mock_dumps, mock_input, mock_print, mock_workspace, mock_global):
+    def test_view_current_settings_empty(
+        self, mock_dumps, mock_input, mock_print, mock_workspace_path, mock_global_path, mock_effective, mock_workspace, mock_global
+    ):
         """Test _view_current_settings with empty settings."""
+        mock_global_path.return_value = Path("/home/user/.tgit/settings.json")
+        mock_workspace_path.return_value = Path("/repo/.tgit/settings.json")
         mock_global.return_value = {}
         mock_workspace.return_value = {}
+        mock_effective.return_value = {"model": "gpt-5.4-mini", "reasoning_effort": "none"}
+        mock_dumps.return_value = '{"model": "gpt-5.4-mini", "reasoning_effort": "none"}'
         mock_input.return_value = ""
 
         _view_current_settings()
 
         mock_print.assert_any_call("\n[bold green]Current Settings:[/bold green]")
+        mock_print.assert_any_call("\n[blue]Global Settings:[/blue] /home/user/.tgit/settings.json")
         mock_print.assert_any_call("No global settings found")
+        mock_print.assert_any_call("\n[blue]Workspace Settings:[/blue] /repo/.tgit/settings.json")
         mock_print.assert_any_call("No workspace settings found")
+        mock_print.assert_any_call("\n[blue]Effective Settings:[/blue]")
         mock_global.assert_called_once()
         mock_workspace.assert_called_once()
         mock_input.assert_called_once()
 
     @patch("tgit.interactive_settings.load_global_settings")
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
+    @patch("tgit.interactive_settings._get_global_settings_path")
+    @patch("tgit.interactive_settings._get_workspace_settings_path")
     @patch("tgit.interactive_settings.print")
     @patch("builtins.input")
     @patch("tgit.interactive_settings.json.dumps")
-    def test_view_current_settings_with_data(self, mock_dumps, mock_input, mock_print, mock_workspace, mock_global):
+    def test_view_current_settings_with_data(
+        self, mock_dumps, mock_input, mock_print, mock_workspace_path, mock_global_path, mock_effective, mock_workspace, mock_global
+    ):
         """Test _view_current_settings with actual settings."""
+        mock_global_path.return_value = Path("/home/user/.tgit/settings.json")
+        mock_workspace_path.return_value = Path("/repo/.tgit/settings.json")
         mock_global.return_value = {"apiKey": "global-key", "model": "gpt-4"}
         mock_workspace.return_value = {"apiKey": "workspace-key"}
-        mock_dumps.side_effect = ['{"apiKey": "global-key", "model": "gpt-4"}', '{"apiKey": "workspace-key"}']
+        mock_effective.return_value = {"apiKey": "workspace-key", "model": "gpt-4"}
+        mock_dumps.side_effect = [
+            '{"apiKey": "global-key", "model": "gpt-4"}',
+            '{"apiKey": "workspace-key"}',
+            '{"apiKey": "workspace-key", "model": "gpt-4"}',
+        ]
         mock_input.return_value = ""
 
         _view_current_settings()
@@ -173,7 +197,7 @@ class TestConfigureGlobalSettings:
     def test_configure_global_settings_cancel_show_command(self, mock_confirm, mock_text, mock_load):
         """Test _configure_global_settings with cancel at show_command."""
         mock_load.return_value = {}
-        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model"]
+        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model", ""]
         mock_confirm.return_value.ask.return_value = None
 
         _configure_global_settings()
@@ -186,7 +210,7 @@ class TestConfigureGlobalSettings:
     def test_configure_global_settings_cancel_skip_confirm(self, mock_confirm, mock_text, mock_load):
         """Test _configure_global_settings with cancel at skip_confirm."""
         mock_load.return_value = {}
-        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model"]
+        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model", ""]
         mock_confirm.return_value.ask.side_effect = [True, None]
 
         _configure_global_settings()
@@ -199,7 +223,7 @@ class TestConfigureGlobalSettings:
     def test_configure_global_settings_cancel_commit_emoji(self, mock_confirm, mock_text, mock_load):
         """Test _configure_global_settings with cancel at commit_emoji."""
         mock_load.return_value = {}
-        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model"]
+        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model", ""]
         mock_confirm.return_value.ask.side_effect = [True, False, None]
 
         _configure_global_settings()
@@ -226,6 +250,7 @@ class TestConfigureGlobalSettings:
             "test-api-key",  # API key
             "https://api.example.com",  # API URL
             "gpt-4.1",  # model
+            "medium",  # reasoning effort
         ]
         mock_confirm.return_value.ask.side_effect = [
             True,  # show_command
@@ -238,7 +263,7 @@ class TestConfigureGlobalSettings:
             _configure_global_settings()
 
         # Verify all inputs were called
-        assert mock_text.call_count == 3
+        assert mock_text.call_count == 4
         assert mock_confirm.call_count == 4
         mock_mkdir.assert_called_once()
         mock_write_text.assert_called_once()
@@ -273,6 +298,7 @@ class TestConfigureGlobalSettings:
             "test-api-key",  # API key
             "",  # API URL (empty)
             "gpt-4.1",  # model
+            "",  # reasoning effort
         ]
         mock_confirm.return_value.ask.side_effect = [
             True,  # show_command
@@ -285,17 +311,20 @@ class TestConfigureGlobalSettings:
             _configure_global_settings()
 
         mock_config_types.assert_called_once()
-        mock_print.assert_any_call("[green]Global settings saved successfully![/green]")
+        mock_print.assert_any_call("[green]Global settings saved successfully:[/green] /home/user/.tgit/settings.json")
 
 
 class TestConfigureWorkspaceSettings:
     """Test _configure_workspace_settings function."""
 
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
-    def test_configure_workspace_settings_decline_setup(self, mock_confirm, mock_load):
+    @patch("tgit.interactive_settings.print")
+    def test_configure_workspace_settings_decline_setup(self, mock_print, mock_confirm, mock_effective, mock_load):
         """Test _configure_workspace_settings with decline setup."""
         mock_load.return_value = {}
+        mock_effective.return_value = {"model": "gpt-5.4-mini", "reasoning_effort": "none"}
         mock_confirm.return_value.ask.return_value = False
 
         _configure_workspace_settings()
@@ -303,11 +332,14 @@ class TestConfigureWorkspaceSettings:
         mock_confirm.assert_called_once()
 
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
-    def test_configure_workspace_settings_cancel_api_key(self, mock_text, mock_confirm, mock_load):
+    @patch("tgit.interactive_settings.print")
+    def test_configure_workspace_settings_cancel_api_key(self, mock_print, mock_text, mock_confirm, mock_effective, mock_load):
         """Test _configure_workspace_settings with cancel at API key."""
         mock_load.return_value = {}
+        mock_effective.return_value = {"apiKey": "", "apiUrl": "", "model": "gpt-5.4-mini", "reasoning_effort": "none"}
         mock_confirm.return_value.ask.return_value = True
         mock_text.return_value.ask.return_value = None
 
@@ -316,11 +348,14 @@ class TestConfigureWorkspaceSettings:
         mock_text.assert_called_once()
 
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
-    def test_configure_workspace_settings_cancel_api_url(self, mock_text, mock_confirm, mock_load):
+    @patch("tgit.interactive_settings.print")
+    def test_configure_workspace_settings_cancel_api_url(self, mock_print, mock_text, mock_confirm, mock_effective, mock_load):
         """Test _configure_workspace_settings with cancel at API URL."""
         mock_load.return_value = {}
+        mock_effective.return_value = {"apiKey": "", "apiUrl": "", "model": "gpt-5.4-mini", "reasoning_effort": "none"}
         mock_confirm.return_value.ask.return_value = True
         mock_text.return_value.ask.side_effect = ["api-key", None]
 
@@ -329,11 +364,14 @@ class TestConfigureWorkspaceSettings:
         assert mock_text.call_count == 2
 
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
-    def test_configure_workspace_settings_cancel_model(self, mock_text, mock_confirm, mock_load):
+    @patch("tgit.interactive_settings.print")
+    def test_configure_workspace_settings_cancel_model(self, mock_print, mock_text, mock_confirm, mock_effective, mock_load):
         """Test _configure_workspace_settings with cancel at model."""
         mock_load.return_value = {}
+        mock_effective.return_value = {"apiKey": "", "apiUrl": "", "model": "gpt-5.4-mini", "reasoning_effort": "none"}
         mock_confirm.return_value.ask.side_effect = [True, None]  # First confirm setup, then cancel at model
         mock_text.return_value.ask.side_effect = ["api-key", "api-url", None]
 
@@ -342,107 +380,228 @@ class TestConfigureWorkspaceSettings:
         assert mock_text.call_count == 3
 
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
-    def test_configure_workspace_settings_cancel_show_command(self, mock_text, mock_confirm, mock_load):
+    @patch("tgit.interactive_settings.questionary.select")
+    @patch("tgit.interactive_settings.print")
+    def test_configure_workspace_settings_cancel_show_command(
+        self, mock_print, mock_select, mock_text, mock_confirm, mock_effective, mock_load
+    ):
         """Test _configure_workspace_settings with cancel at show_command."""
         mock_load.return_value = {}
-        mock_confirm.return_value.ask.side_effect = [True, None]  # Setup, then cancel at show_command
-        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model"]
+        mock_effective.return_value = {"apiKey": "", "apiUrl": "", "model": "gpt-5.4-mini", "reasoning_effort": "none"}
+        mock_confirm.return_value.ask.return_value = True
+        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model", ""]
+        mock_select.return_value.ask.return_value = None
 
         _configure_workspace_settings()
 
-        assert mock_text.call_count == 3
-        assert mock_confirm.call_count == 2
+        assert mock_text.call_count == 4
+        mock_select.assert_called_once()
 
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
-    def test_configure_workspace_settings_cancel_skip_confirm(self, mock_text, mock_confirm, mock_load):
+    @patch("tgit.interactive_settings.questionary.select")
+    @patch("tgit.interactive_settings.print")
+    def test_configure_workspace_settings_cancel_skip_confirm(
+        self, mock_print, mock_select, mock_text, mock_confirm, mock_effective, mock_load
+    ):
         """Test _configure_workspace_settings with cancel at skip_confirm."""
         mock_load.return_value = {}
-        mock_confirm.return_value.ask.side_effect = [True, True, None]  # Setup, show_command, then cancel
-        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model"]
+        mock_effective.return_value = {"apiKey": "", "apiUrl": "", "model": "gpt-5.4-mini", "reasoning_effort": "none"}
+        mock_confirm.return_value.ask.return_value = True
+        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model", ""]
+        mock_select.return_value.ask.side_effect = ["true", None]
 
         _configure_workspace_settings()
 
-        assert mock_confirm.call_count == 3
+        assert mock_select.call_count == 2
 
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
-    def test_configure_workspace_settings_cancel_commit_emoji(self, mock_text, mock_confirm, mock_load):
+    @patch("tgit.interactive_settings.questionary.select")
+    @patch("tgit.interactive_settings.print")
+    def test_configure_workspace_settings_cancel_commit_emoji(
+        self, mock_print, mock_select, mock_text, mock_confirm, mock_effective, mock_load
+    ):
         """Test _configure_workspace_settings with cancel at commit_emoji."""
         mock_load.return_value = {}
-        mock_confirm.return_value.ask.side_effect = [True, True, False, None]  # Setup, show_command, skip_confirm, then cancel
-        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model"]
+        mock_effective.return_value = {"apiKey": "", "apiUrl": "", "model": "gpt-5.4-mini", "reasoning_effort": "low"}
+        mock_confirm.return_value.ask.return_value = True
+        mock_text.return_value.ask.side_effect = ["api-key", "api-url", "model", ""]
+        mock_select.return_value.ask.side_effect = ["true", "false", None]
 
         _configure_workspace_settings()
 
-        assert mock_confirm.call_count == 4
+        assert mock_select.call_count == 3
+
+    @patch("tgit.interactive_settings.load_global_settings")
+    @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
+    @patch("tgit.interactive_settings.questionary.confirm")
+    @patch("tgit.interactive_settings.questionary.text")
+    @patch("tgit.interactive_settings.questionary.select")
+    @patch("tgit.interactive_settings.print")
+    def test_configure_workspace_settings_uses_effective_defaults(
+        self, mock_print, mock_select, mock_text, mock_confirm, mock_effective, mock_load_workspace, mock_load_global
+    ):
+        """Test workspace settings use effective values as prompt defaults."""
+        mock_load_global.return_value = {"apiKey": "global-key", "show_command": False}
+        mock_load_workspace.return_value = {}
+        mock_effective.return_value = {
+            "apiKey": "global-key",
+            "apiUrl": "https://api.example.com",
+            "model": "gpt-4.1",
+            "reasoning_effort": "medium",
+            "show_command": False,
+            "skip_confirm": False,
+            "commit": {"emoji": False},
+        }
+        mock_confirm.return_value.ask.return_value = True
+        mock_text.return_value.ask.side_effect = ["global-key", "https://api.example.com", "gpt-4.1", "medium"]
+        mock_select.return_value.ask.return_value = None
+
+        _configure_workspace_settings()
+
+        assert mock_text.call_args_list[0].kwargs["default"] == "global-key"
+        assert mock_text.call_args_list[1].kwargs["default"] == "https://api.example.com"
+        assert mock_text.call_args_list[2].kwargs["default"] == "gpt-4.1"
+        assert mock_text.call_args_list[3].kwargs["default"] == "medium"
+        mock_select.assert_called_once()
 
     @patch("pathlib.Path.mkdir")
     @patch("pathlib.Path.write_text")
     @patch("tgit.interactive_settings.json.dumps")
+    @patch("tgit.interactive_settings.load_global_settings")
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
+    @patch("tgit.interactive_settings.questionary.select")
     @patch("tgit.interactive_settings.print")
     def test_configure_workspace_settings_complete_with_all_values(
-        self, mock_print, mock_text, mock_confirm, mock_load, mock_dumps, mock_write_text, mock_mkdir
+        self,
+        mock_print,
+        mock_select,
+        mock_text,
+        mock_confirm,
+        mock_effective,
+        mock_load_workspace,
+        mock_load_global,
+        mock_dumps,
+        mock_write_text,
+        mock_mkdir,
     ):
         """Test _configure_workspace_settings complete flow with all values."""
-        mock_load.return_value = {}
+        mock_load_global.return_value = {}
+        mock_load_workspace.return_value = {}
+        mock_effective.return_value = {
+            "apiKey": "",
+            "apiUrl": "",
+            "model": "gpt-5.4-mini",
+            "reasoning_effort": "none",
+            "show_command": True,
+            "skip_confirm": False,
+            "commit": {"emoji": False},
+        }
 
         # Mock all inputs
-        mock_text.return_value.ask.side_effect = ["workspace-api-key", "https://workspace-api.example.com", "gpt-4-workspace"]
-        mock_confirm.return_value.ask.side_effect = [
-            True,  # setup confirmation
-            True,  # show_command
-            True,  # skip_confirm
-            False,  # commit_emoji
+        mock_text.return_value.ask.side_effect = [
+            "workspace-api-key",
+            "https://workspace-api.example.com",
+            "gpt-4-workspace",
+            "medium",
         ]
+        mock_confirm.return_value.ask.return_value = True
+        mock_select.return_value.ask.side_effect = ["true", "true", "false"]
 
         _configure_workspace_settings()
 
         # Verify all calls were made
-        assert mock_text.call_count == 3
-        assert mock_confirm.call_count == 4
+        assert mock_text.call_count == 4
+        assert mock_select.call_count == 3
+        mock_dumps.assert_called_once_with(
+            {
+                "apiKey": "workspace-api-key",
+                "apiUrl": "https://workspace-api.example.com",
+                "model": "gpt-4-workspace",
+                "reasoning_effort": "medium",
+                "skip_confirm": True,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
         mock_mkdir.assert_called_once()
         mock_write_text.assert_called_once()
-        mock_print.assert_any_call(f"[green]Workspace settings saved to {Path.cwd() / '.tgit' / 'settings.json'}![/green]")
+        mock_print.assert_any_call(f"[green]Workspace settings saved successfully:[/green] {Path.cwd() / '.tgit' / 'settings.json'}")
 
     @patch("pathlib.Path.mkdir")
     @patch("pathlib.Path.write_text")
     @patch("tgit.interactive_settings.json.dumps")
+    @patch("tgit.interactive_settings.load_global_settings")
     @patch("tgit.interactive_settings.load_workspace_settings")
+    @patch("tgit.interactive_settings._get_effective_settings_dict")
     @patch("tgit.interactive_settings.questionary.confirm")
     @patch("tgit.interactive_settings.questionary.text")
+    @patch("tgit.interactive_settings.questionary.select")
     @patch("tgit.interactive_settings.print")
     def test_configure_workspace_settings_complete_with_empty_values(
-        self, mock_print, mock_text, mock_confirm, mock_load, mock_dumps, mock_write_text, mock_mkdir
+        self,
+        mock_print,
+        mock_select,
+        mock_text,
+        mock_confirm,
+        mock_effective,
+        mock_load_workspace,
+        mock_load_global,
+        mock_dumps,
+        mock_write_text,
+        mock_mkdir,
     ):
-        """Test _configure_workspace_settings complete flow with empty API values."""
-        mock_load.return_value = {}
+        """Test workspace settings can clear overrides and fall back to inheritance."""
+        mock_load_global.return_value = {
+            "apiKey": "global-api-key",
+            "apiUrl": "https://api.example.com",
+            "model": "gpt-4.1",
+            "reasoning_effort": "high",
+            "show_command": False,
+            "skip_confirm": True,
+            "commit": {"emoji": True},
+        }
+        mock_load_workspace.return_value = {
+            "apiKey": "workspace-api-key",
+            "show_command": True,
+            "commit": {"emoji": False},
+        }
+        mock_effective.return_value = {
+            "apiKey": "workspace-api-key",
+            "apiUrl": "https://api.example.com",
+            "model": "gpt-4.1",
+            "reasoning_effort": "high",
+            "show_command": True,
+            "skip_confirm": True,
+            "commit": {"emoji": False},
+        }
 
-        # Mock all inputs with empty API values
         mock_text.return_value.ask.side_effect = [
-            "",  # empty api key
-            "",  # empty api url
-            "",  # empty model
+            "",
+            "",
+            "",
+            "",
         ]
-        mock_confirm.return_value.ask.side_effect = [
-            True,  # setup confirmation
-            False,  # show_command
-            False,  # skip_confirm
-            True,  # commit_emoji
-        ]
+        mock_confirm.return_value.ask.return_value = True
+        mock_select.return_value.ask.side_effect = ["inherit", "inherit", "inherit"]
 
         _configure_workspace_settings()
 
-        # Verify all calls were made
-        assert mock_text.call_count == 3
-        assert mock_confirm.call_count == 4
+        assert mock_text.call_count == 4
+        assert mock_select.call_count == 3
+        mock_dumps.assert_called_once_with({}, indent=2, ensure_ascii=False)
         mock_mkdir.assert_called_once()
         mock_write_text.assert_called_once()
 

@@ -149,6 +149,7 @@ def _dict_to_settings(data: dict[str, Any]) -> TGitSettings:
         api_key=data.get("apiKey", ""),
         api_url=data.get("apiUrl", ""),
         model=data.get("model") or DEFAULT_MODEL,
+        reasoning_effort=data.get("reasoning_effort", ""),
         show_command=data.get("show_command", True),
         skip_confirm=data.get("skip_confirm", False),
     )

@@ -96,14 +96,18 @@ This will guide you through setting up:
 
 - OpenAI API key for AI-powered commits
 - Preferred AI model (gpt-5-mini, gpt-4.1, etc.)
+- Optional reasoning effort override (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`)
 - Commit emoji preferences
 - Custom commit types
+- Global and workspace settings paths during view and save flows
+- Workspace overrides using effective defaults, with empty values falling back to inherited settings
 
 Alternatively, you can manually create a `.tgit.yaml` file in your project root or `~/.tgit.yaml` for global settings:
 
 ```yaml
 apiKey: "your-openai-api-key"
 model: "gpt-5-mini"
+reasoning_effort: "medium"
 commit:
   emoji: true
   types:
@@ -165,6 +169,10 @@ tgit settings
 # Show current settings
 tgit settings --show
 ```
+
+When configuring workspace settings interactively, TGIT shows the effective values that are currently in use. Leave a string field empty to inherit from the global/default value, or choose `Follow global/default` for boolean settings.
+
+You can also override the default reasoning effort used for AI commit generation with `reasoning_effort`. Use `auto` in the non-interactive settings command, or leave the field empty in interactive settings, to omit the field and fall back to the model-specific default. Those defaults vary by model family, for example `gpt-5` defaults to `medium`, while `gpt-5.4-mini` defaults to `none`.
 
 ## 🛠️ Development
 

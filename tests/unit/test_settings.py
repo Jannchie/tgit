@@ -54,7 +54,7 @@ class TestSettings:
         result = runner.invoke(settings_command, ["invalid_key", "test"])
 
         assert result.exit_code == 1
-        available_keys = ["apiKey", "apiUrl", "model", "show_command", "skip_confirm"]
+        available_keys = ["apiKey", "apiUrl", "model", "reasoning_effort", "show_command", "skip_confirm"]
         mock_print.assert_called_once_with(f"Key invalid_key is not valid. Available keys: {', '.join(available_keys)}")
 
     @patch("tgit.settings.set_global_settings")
@@ -78,6 +78,28 @@ class TestSettings:
         assert result.exit_code == 0
         mock_set_global_settings.assert_called_once_with("model", "gpt-4")
         mock_print.assert_called_once_with("[green]Setting model updated successfully![/green]")
+
+    @patch("tgit.settings.set_global_settings")
+    @patch("tgit.settings.print")
+    def test_settings_valid_reasoning_effort_key(self, mock_print, mock_set_global_settings):
+        """Test settings_command with valid reasoning effort."""
+        runner = CliRunner()
+        result = runner.invoke(settings_command, ["reasoning_effort", "medium"])
+
+        assert result.exit_code == 0
+        mock_set_global_settings.assert_called_once_with("reasoning_effort", "medium")
+        mock_print.assert_called_once_with("[green]Setting reasoning_effort updated successfully![/green]")
+
+    @patch("tgit.settings.set_global_settings")
+    @patch("tgit.settings.print")
+    def test_settings_reasoning_effort_auto(self, mock_print, mock_set_global_settings):
+        """Test settings_command can reset reasoning effort to automatic."""
+        runner = CliRunner()
+        result = runner.invoke(settings_command, ["reasoning_effort", "auto"])
+
+        assert result.exit_code == 0
+        mock_set_global_settings.assert_called_once_with("reasoning_effort", "")
+        mock_print.assert_called_once_with("[green]Setting reasoning_effort updated successfully![/green]")
 
     @patch("tgit.settings.set_global_settings")
     @patch("tgit.settings.print")
@@ -122,6 +144,17 @@ class TestSettings:
         assert result.exit_code == 1
         mock_print.assert_called_once_with("Invalid boolean value for show_command. Use true/false, 1/0, yes/no, or on/off")
 
+    @patch("tgit.settings.print")
+    def test_settings_invalid_reasoning_effort_value(self, mock_print):
+        """Test settings_command rejects unknown reasoning effort values."""
+        runner = CliRunner()
+        result = runner.invoke(settings_command, ["reasoning_effort", "invalid"])
+
+        assert result.exit_code == 1
+        mock_print.assert_called_once_with(
+            "Invalid reasoning effort. Use auto/default or one of: none, minimal, low, medium, high, xhigh"
+        )
+
     @patch("tgit.settings.set_global_settings")
     @patch("tgit.settings.print")
     def test_settings_all_valid_keys(self, mock_print, mock_set_global_settings):
@@ -130,6 +163,7 @@ class TestSettings:
             ("apiKey", "test_key"),
             ("apiUrl", "https://api.openai.com"),
             ("model", "gpt-4"),
+            ("reasoning_effort", "high"),
             ("show_command", "true"),
             ("skip_confirm", "false"),
         ]

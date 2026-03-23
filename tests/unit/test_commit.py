@@ -1,5 +1,6 @@
 """Tests for commit module."""
 
+import click
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 import git
@@ -415,6 +416,7 @@ class TestGenerateCommitWithAI:
         mock_create_client.return_value = mock_client
         mock_template.render.return_value = "system prompt"
         mock_settings.model = "gpt-4"
+        mock_settings.reasoning_effort = ""
 
         # Mock the response
         mock_response = Mock()
@@ -449,11 +451,12 @@ class TestGenerateCommitWithAI:
     @patch("tgit.commit.commit_prompt_template")
     @patch("tgit.commit.settings")
     def test_generate_commit_with_ai_reasoning_model(self, mock_settings, mock_template, mock_console, mock_create_client, mock_check):
-        """Test legacy reasoning models keep the existing effort value."""
+        """Test reasoning-capable models use the API default when not configured."""
         mock_client = Mock()
         mock_create_client.return_value = mock_client
         mock_template.render.return_value = "system prompt"
         mock_settings.model = "o1-mini"
+        mock_settings.reasoning_effort = ""
 
         mock_response = Mock()
         mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
@@ -466,7 +469,7 @@ class TestGenerateCommitWithAI:
         mock_check.assert_called_once()
         mock_create_client.assert_called_once()
         _, kwargs = mock_client.responses.parse.call_args
-        assert kwargs["reasoning"] == {"effort": "minimal"}
+        assert "reasoning" not in kwargs
 
     @patch("tgit.commit._check_openai_availability")
     @patch("tgit.commit._create_openai_client")
@@ -476,11 +479,12 @@ class TestGenerateCommitWithAI:
     def test_generate_commit_with_ai_gpt5_reasoning_model_uses_low_effort(
         self, mock_settings, mock_template, mock_console, mock_create_client, mock_check
     ):
-        """Test GPT-5 reasoning models use a supported effort value."""
+        """Test GPT-5.4 models also use the API default when not configured."""
         mock_client = Mock()
         mock_create_client.return_value = mock_client
         mock_template.render.return_value = "system prompt"
         mock_settings.model = "gpt-5.4-mini"
+        mock_settings.reasoning_effort = ""
 
         mock_response = Mock()
         mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
@@ -493,7 +497,53 @@ class TestGenerateCommitWithAI:
         mock_check.assert_called_once()
         mock_create_client.assert_called_once()
         _, kwargs = mock_client.responses.parse.call_args
-        assert kwargs["reasoning"] == {"effort": "low"}
+        assert "reasoning" not in kwargs
+
+    @patch("tgit.commit._check_openai_availability")
+    @patch("tgit.commit._create_openai_client")
+    @patch("tgit.commit.console")
+    @patch("tgit.commit.commit_prompt_template")
+    @patch("tgit.commit.settings")
+    def test_generate_commit_with_ai_uses_configured_reasoning_effort(
+        self, mock_settings, mock_template, mock_console, mock_create_client, mock_check
+    ):
+        """Test configured reasoning effort overrides the default."""
+        mock_client = Mock()
+        mock_create_client.return_value = mock_client
+        mock_template.render.return_value = "system prompt"
+        mock_settings.model = "gpt-5.4-mini"
+        mock_settings.reasoning_effort = "medium"
+
+        mock_response = Mock()
+        mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
+        mock_response.output_parsed = mock_commit_data
+        mock_client.responses.parse.return_value = mock_response
+
+        result = _generate_commit_with_ai("diff content", None, "main")
+
+        assert result == mock_commit_data
+        mock_check.assert_called_once()
+        mock_create_client.assert_called_once()
+        _, kwargs = mock_client.responses.parse.call_args
+        assert kwargs["reasoning"] == {"effort": "medium"}
+
+    @patch("tgit.commit._check_openai_availability")
+    @patch("tgit.commit._create_openai_client")
+    @patch("tgit.commit.console")
+    @patch("tgit.commit.commit_prompt_template")
+    @patch("tgit.commit.settings")
+    def test_generate_commit_with_ai_rejects_unsupported_reasoning_effort(
+        self, mock_settings, mock_template, mock_console, mock_create_client, mock_check
+    ):
+        """Test configured reasoning effort is validated for known model families."""
+        mock_client = Mock()
+        mock_create_client.return_value = mock_client
+        mock_template.render.return_value = "system prompt"
+        mock_settings.model = "gpt-5.4-mini"
+        mock_settings.reasoning_effort = "minimal"
+
+        with pytest.raises(click.ClickException, match=r"not supported by model 'gpt-5\.4-mini'"):
+            _generate_commit_with_ai("diff content", None, "main")
 
 
 class TestGetAICommand:
