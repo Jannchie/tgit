@@ -1,3 +1,20 @@
+## v0.30.0
+
+[v0.29.0...v0.30.0](https://github.com/Jannchie/tgit/compare/v0.29.0...v0.30.0)
+
+### :sparkles: Features
+
+- **settings**: add reasoning_effort setting and interactive support - By [Jannchie](mailto:jannchie@gmail.com) in [a599e08](https://github.com/Jannchie/tgit/commit/a599e08)
+
+### :test_tube: Tests
+
+- **commit**: add tests for reasoning effort handling and implement helper - By [Jannchie](mailto:jannchie@gmail.com) in [e8ffda2](https://github.com/Jannchie/tgit/commit/e8ffda2)
+
+### :wrench: Chores
+
+- **ci**: add pypi publish and id-token permissions - By [Jannchie](mailto:jannchie@gmail.com) in [4001a0c](https://github.com/Jannchie/tgit/commit/4001a0c)
+- **project**: add license, update README and packaging metadata - By [Jannchie](mailto:jannchie@gmail.com) in [3fdc8f1](https://github.com/Jannchie/tgit/commit/3fdc8f1)
+
 ## v0.29.0
 
 [v0.28.0...v0.29.0](https://github.com/Jannchie/tgit/compare/v0.28.0...v0.29.0)
