@@ -93,6 +93,17 @@ def _supports_reasoning(model: str) -> bool:
     return any(hint in model_lower for hint in REASONING_MODEL_HINTS)
 
 
+def _get_reasoning_effort(model: str) -> str:
+    """Return a model-compatible default reasoning effort."""
+    model_lower = model.lower()
+
+    # GPT-5 family models reject "minimal" and require the newer effort values.
+    if "gpt-5" in model_lower:
+        return "low"
+
+    return "minimal"
+
+
 def get_changed_files_from_status(repo: git.Repo) -> set[str]:
     """获取所有变更的文件，包括重命名/移动的文件"""
     diff_name_status = repo.git.diff("--cached", "--name-status", "-M")
@@ -254,7 +265,7 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
             "text_format": CommitData,
         }
         if _supports_reasoning(model_name):
-            request_kwargs["reasoning"] = {"effort": "minimal"}
+            request_kwargs["reasoning"] = {"effort": _get_reasoning_effort(model_name)}
 
         chat_completion = client.responses.parse(
             **request_kwargs,

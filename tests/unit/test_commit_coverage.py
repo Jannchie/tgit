@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 from tgit.commit import (
     CommitArgs,
+    _get_reasoning_effort,
     _supports_reasoning,
     get_ai_command,
     get_file_change_sizes,
@@ -17,6 +18,14 @@ class TestCommitCoverage:
         """Test _supports_reasoning with empty model."""
         assert _supports_reasoning("") is False
         assert _supports_reasoning(None) is False
+
+    def test_get_reasoning_effort_for_gpt5(self):
+        """Test GPT-5 models use a supported reasoning effort."""
+        assert _get_reasoning_effort("gpt-5.4-mini") == "low"
+
+    def test_get_reasoning_effort_for_legacy_reasoning_model(self):
+        """Test legacy reasoning models keep the previous effort."""
+        assert _get_reasoning_effort("o1-mini") == "minimal"
 
     def test_get_file_change_sizes_value_error(self):
         """Test get_file_change_sizes with invalid numstat."""
