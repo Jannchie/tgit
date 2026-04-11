@@ -1,3 +1,11 @@
+## v0.31.0
+
+[v0.30.0...v0.31.0](https://github.com/Jannchie/tgit/compare/v0.30.0...v0.31.0)
+
+### :sparkles: Features
+
+- **cli**: add terminal title handling for cli - By [Jannchie](mailto:jannchie@gmail.com) in [65f1837](https://github.com/Jannchie/tgit/commit/65f1837)
+
 ## v0.30.0
 
 [v0.29.0...v0.30.0](https://github.com/Jannchie/tgit/compare/v0.29.0...v0.30.0)
