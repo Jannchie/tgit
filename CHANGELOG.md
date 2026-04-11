@@ -1,3 +1,11 @@
+## v0.32.1
+
+[v0.32.0...v0.32.1](https://github.com/Jannchie/tgit/compare/v0.32.0...v0.32.1)
+
+### :adhesive_bandage: Fixes
+
+- **commit**: remove default max_output_tokens from ai request - By [Jannchie](mailto:jannchie@gmail.com) in [99085d1](https://github.com/Jannchie/tgit/commit/99085d1)
+
 ## v0.32.0
 
 [v0.31.0...v0.32.0](https://github.com/Jannchie/tgit/compare/v0.31.0...v0.32.0)

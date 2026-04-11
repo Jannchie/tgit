@@ -1,6 +1,6 @@
 [project]
 name = "tgit"
-version = "0.32.0"
+version = "0.32.1"
 description = "AI-powered Git CLI for commits, changelogs, and semantic versioning."
 authors = [{ name = "Jannchie", email = "jannchie@gmail.com" }]
 dependencies = [
