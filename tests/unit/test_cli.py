@@ -4,7 +4,7 @@ import click
 import threading
 from click.testing import CliRunner
 
-from tgit.cli import app, set_terminal_title, version_callback
+from tgit.cli import app, set_process_title, set_terminal_title, version_callback
 
 
 class TestCLI:
@@ -53,8 +53,9 @@ class TestCLI:
         mock_ctx.exit.assert_not_called()
 
     @patch("tgit.cli.threading.Thread")
+    @patch("tgit.cli.set_process_title")
     @patch("tgit.cli.set_terminal_title")
-    def test_app_starts_openai_import_thread(self, mock_set_terminal_title, mock_thread):
+    def test_app_starts_openai_import_thread(self, mock_set_terminal_title, mock_set_process_title, mock_thread):
         """Test that app starts a thread for OpenAI import"""
         mock_thread_instance = MagicMock()
         mock_thread.return_value = mock_thread_instance
@@ -62,6 +63,7 @@ class TestCLI:
         # Directly call the app function to test the callback
         app.callback()
 
+        mock_set_process_title.assert_called_once_with("tgit")
         mock_set_terminal_title.assert_called_once_with("tgit")
         # The app should run the callback and start the thread
         mock_thread.assert_called_once()
@@ -87,6 +89,20 @@ class TestCLI:
         # Check if app has the callback mechanism
         assert isinstance(app, click.Group)
         # Verify the app exists and is configured correctly
+
+    @patch("tgit.cli.setproctitle_module.setproctitle")
+    def test_set_process_title_updates_process_name(self, mock_setproctitle):
+        """Test process title is updated when support is available."""
+        set_process_title("tgit")
+
+        mock_setproctitle.assert_called_once_with("tgit")
+
+    @patch("tgit.cli.setproctitle_module.setproctitle", side_effect=RuntimeError("boom"))
+    def test_set_process_title_ignores_errors(self, mock_setproctitle):
+        """Test process title errors do not break CLI startup."""
+        set_process_title("tgit")
+
+        mock_setproctitle.assert_called_once_with("tgit")
 
     @patch("tgit.cli.sys.stdout.flush")
     @patch("tgit.cli.sys.stdout.write")

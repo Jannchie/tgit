@@ -4,6 +4,7 @@ import sys
 import threading
 
 import click
+import setproctitle as setproctitle_module
 
 from tgit.add import add
 from tgit.changelog import changelog
@@ -11,6 +12,11 @@ from tgit.commit import commit
 from tgit.settings import settings_command
 from tgit.utils import console
 from tgit.version import version
+
+
+def set_process_title(title: str) -> None:
+    with contextlib.suppress(Exception):
+        setproctitle_module.setproctitle(title)
 
 
 def set_terminal_title(title: str) -> None:
@@ -42,6 +48,7 @@ def version_callback(ctx: click.Context, _param: click.Parameter, value: bool) -
     help="Show version",
 )
 def app() -> None:
+    set_process_title("tgit")
     set_terminal_title("tgit")
 
     def import_openai() -> None:
