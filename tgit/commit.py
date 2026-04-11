@@ -25,7 +25,7 @@ with importlib.resources.path("tgit", "prompts") as prompt_path:
 commit_types = ["feat", "fix", "chore", "docs", "style", "refactor", "perf", "test", "ci"]
 commit_file = "commit.txt"
 commit_prompt_template = env.get_template("commit.txt")
-DEFAULT_MAX_OUTPUT_TOKENS = 256
+DEFAULT_MAX_OUTPUT_TOKENS = 1024
 
 # Define click arguments/options at module level to avoid B008
 MESSAGE_ARG = click.argument(
