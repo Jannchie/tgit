@@ -1,3 +1,15 @@
+## v0.32.0
+
+[v0.31.0...v0.32.0](https://github.com/Jannchie/tgit/compare/v0.31.0...v0.32.0)
+
+### :sparkles: Features
+
+- **cli**: set process title on startup - By [Jannchie](mailto:jannchie@gmail.com) in [8a4a008](https://github.com/Jannchie/tgit/commit/8a4a008)
+
+### :adhesive_bandage: Fixes
+
+- **commit**: increase default max output tokens - By [Jannchie](mailto:jannchie@gmail.com) in [616d920](https://github.com/Jannchie/tgit/commit/616d920)
+
 ## v0.31.0
 
 [v0.30.0...v0.31.0](https://github.com/Jannchie/tgit/compare/v0.30.0...v0.31.0)
