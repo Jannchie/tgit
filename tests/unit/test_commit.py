@@ -11,7 +11,6 @@ from click.testing import CliRunner
 from tgit.commit import (
     CommitArgs,
     CommitData,
-    DEFAULT_MAX_OUTPUT_TOKENS,
     MAX_DIFF_SECTION_CHARS,
     PotentialSecret,
     TRUNCATED_DIFF_HEAD_CHARS,
@@ -432,7 +431,7 @@ class TestGenerateCommitWithAI:
         mock_create_client.assert_called_once()
         mock_client.responses.parse.assert_called_once()
         _, kwargs = mock_client.responses.parse.call_args
-        assert kwargs["max_output_tokens"] == DEFAULT_MAX_OUTPUT_TOKENS
+        assert "max_output_tokens" not in kwargs
         assert "reasoning" not in kwargs
 
     @patch("tgit.commit._check_openai_availability")
