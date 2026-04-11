@@ -1,5 +1,6 @@
 import contextlib
 import importlib.metadata
+import sys
 import threading
 
 import click
@@ -10,6 +11,13 @@ from tgit.commit import commit
 from tgit.settings import settings_command
 from tgit.utils import console
 from tgit.version import version
+
+
+def set_terminal_title(title: str) -> None:
+    if not sys.stdout.isatty():
+        return
+    sys.stdout.write(f"\033]0;{title}\a")
+    sys.stdout.flush()
 
 
 def version_callback(ctx: click.Context, _param: click.Parameter, value: bool) -> None:  # noqa: FBT001
@@ -34,6 +42,8 @@ def version_callback(ctx: click.Context, _param: click.Parameter, value: bool) -
     help="Show version",
 )
 def app() -> None:
+    set_terminal_title("tgit")
+
     def import_openai() -> None:
         with contextlib.suppress(Exception):
             import openai  # noqa: F401, PLC0415

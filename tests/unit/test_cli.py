@@ -1,11 +1,10 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 import click
 import threading
-import time
 from click.testing import CliRunner
 
-from tgit.cli import app, version_callback
+from tgit.cli import app, set_terminal_title, version_callback
 
 
 class TestCLI:
@@ -54,7 +53,8 @@ class TestCLI:
         mock_ctx.exit.assert_not_called()
 
     @patch("tgit.cli.threading.Thread")
-    def test_app_starts_openai_import_thread(self, mock_thread):
+    @patch("tgit.cli.set_terminal_title")
+    def test_app_starts_openai_import_thread(self, mock_set_terminal_title, mock_thread):
         """Test that app starts a thread for OpenAI import"""
         mock_thread_instance = MagicMock()
         mock_thread.return_value = mock_thread_instance
@@ -62,6 +62,7 @@ class TestCLI:
         # Directly call the app function to test the callback
         app.callback()
 
+        mock_set_terminal_title.assert_called_once_with("tgit")
         # The app should run the callback and start the thread
         mock_thread.assert_called_once()
         mock_thread_instance.start.assert_called_once()
@@ -86,6 +87,28 @@ class TestCLI:
         # Check if app has the callback mechanism
         assert isinstance(app, click.Group)
         # Verify the app exists and is configured correctly
+
+    @patch("tgit.cli.sys.stdout.flush")
+    @patch("tgit.cli.sys.stdout.write")
+    @patch("tgit.cli.sys.stdout.isatty", return_value=True)
+    def test_set_terminal_title_writes_escape_sequence(self, mock_isatty, mock_write, mock_flush):
+        """Test terminal title is written for TTY outputs."""
+        set_terminal_title("tgit")
+
+        mock_isatty.assert_called_once()
+        mock_write.assert_called_once_with("\033]0;tgit\a")
+        mock_flush.assert_called_once()
+
+    @patch("tgit.cli.sys.stdout.flush")
+    @patch("tgit.cli.sys.stdout.write")
+    @patch("tgit.cli.sys.stdout.isatty", return_value=False)
+    def test_set_terminal_title_skips_non_tty(self, mock_isatty, mock_write, mock_flush):
+        """Test terminal title is not written for non-TTY outputs."""
+        set_terminal_title("tgit")
+
+        mock_isatty.assert_called_once()
+        mock_write.assert_not_called()
+        mock_flush.assert_not_called()
 
 
 class TestOpenAIDependencyHandling:
