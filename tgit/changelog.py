@@ -524,6 +524,6 @@ def get_changelog_by_range(repo: git.Repo, from_ref: str, to_ref: str) -> str:
 
 
 def get_git_commits_range(repo: git.Repo, from_raw: str | None, to_raw: str | None) -> tuple[str, str]:
-    from_ref = resolve_from_ref(repo, from_raw if from_raw else None)
-    to_ref = to_raw if to_raw else "HEAD"
+    from_ref = resolve_from_ref(repo, from_raw or None)
+    to_ref = to_raw or "HEAD"
     return from_ref, to_ref

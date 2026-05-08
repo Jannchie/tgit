@@ -31,6 +31,7 @@ class CommitSettings:
 @dataclass
 class TGitSettings:
     commit: CommitSettings = field(default_factory=CommitSettings)
+    provider: str = "auto"
     api_key: str = ""
     api_url: str = ""
     model: str = DEFAULT_MODEL

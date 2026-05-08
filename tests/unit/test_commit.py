@@ -17,15 +17,15 @@ from tgit.commit import (
     TRUNCATED_DIFF_TAIL_CHARS,
     TemplateParams,
     _build_diff_for_ai,
+    _build_litellm_model_name,
     _get_changed_files_from_status_output,
     _has_staged_changes,
+    _resolve_api_key,
+    _resolve_base_url,
     _stage_all_changes_if_confirmed,
     get_changed_files_from_status,
     get_file_change_sizes,
     get_filtered_diff_files,
-    _import_openai,
-    _check_openai_availability,
-    _create_openai_client,
     _generate_commit_with_ai,
     _truncate_diff_section,
     get_ai_command,
@@ -323,228 +323,295 @@ class TestStageAllChanges:
         mock_repo.git.add.assert_not_called()
 
 
-class TestOpenAIImport:
-    """Test OpenAI import functions."""
+class TestResolveAPIKey:
+    """Test _resolve_api_key function."""
 
-    @patch("tgit.commit.importlib.import_module")
-    def test_import_openai_success(self, mock_import):
-        """Test successful OpenAI import."""
-        mock_openai = Mock()
-        mock_import.return_value = mock_openai
-
-        result = _import_openai()
-
-        assert result == mock_openai
-        mock_import.assert_called_once_with("openai")
-
-    @patch("tgit.commit.importlib.import_module")
-    def test_import_openai_failure(self, mock_import):
-        """Test OpenAI import failure."""
-        mock_import.side_effect = ImportError("No module named 'openai'")
-
-        with pytest.raises(ImportError, match="openai package is not installed"):
-            _import_openai()
-
-    @patch("tgit.commit._import_openai")
-    def test_check_openai_availability_success(self, mock_import):
-        """Test checking OpenAI availability successfully."""
-        mock_import.return_value = Mock()
-
-        # Should not raise an exception
-        _check_openai_availability()
-
-        mock_import.assert_called_once()
-
-    @patch("tgit.commit._import_openai")
-    def test_check_openai_availability_failure(self, mock_import):
-        """Test checking OpenAI availability failure."""
-        mock_import.side_effect = ImportError("openai package is not installed")
-
-        with pytest.raises(ImportError):
-            _check_openai_availability()
-
-
-class TestCreateOpenAIClient:
-    """Test OpenAI client creation."""
-
-    @patch("tgit.commit._import_openai")
     @patch("tgit.commit.settings")
-    def test_create_openai_client_default(self, mock_settings, mock_import):
-        """Test creating OpenAI client with default settings."""
-        mock_openai = Mock()
-        mock_client = Mock()
-        mock_openai.Client.return_value = mock_client
-        mock_import.return_value = mock_openai
+    def test_resolve_api_key_from_settings(self, mock_settings):
+        """Test resolving API key from settings."""
+        mock_settings.api_key = "sk-from-settings"
+        mock_settings.provider = "auto"
 
-        mock_settings.api_url = None
-        mock_settings.api_key = None
+        result = _resolve_api_key()
 
-        result = _create_openai_client()
+        assert result == "sk-from-settings"
 
-        assert result == mock_client
-        mock_openai.Client.assert_called_once()
-
-    @patch("tgit.commit._import_openai")
     @patch("tgit.commit.settings")
-    def test_create_openai_client_custom_settings(self, mock_settings, mock_import):
-        """Test creating OpenAI client with custom settings."""
-        mock_openai = Mock()
-        mock_client = Mock()
-        mock_openai.Client.return_value = mock_client
-        mock_import.return_value = mock_openai
+    @patch("tgit.commit.os.getenv")
+    def test_resolve_api_key_from_env(self, mock_getenv, mock_settings):
+        """Test resolving API key from environment variable."""
+        mock_settings.api_key = ""
+        mock_settings.provider = "openai"
+        mock_getenv.return_value = "sk-from-env"
 
-        mock_settings.api_url = "https://api.example.com"
-        mock_settings.api_key = "test-key"
+        result = _resolve_api_key()
 
-        result = _create_openai_client()
+        assert result == "sk-from-env"
+        mock_getenv.assert_called_with("OPENAI_API_KEY")
 
-        assert result == mock_client
-        mock_openai.Client.assert_called_once_with(api_key="test-key", base_url="https://api.example.com")
+    @patch("tgit.commit.settings")
+    @patch("tgit.commit.os.getenv")
+    def test_resolve_api_key_none(self, mock_getenv, mock_settings):
+        """Test resolving API key when none is configured."""
+        mock_settings.api_key = ""
+        mock_settings.provider = "auto"
+        mock_getenv.return_value = None
+
+        result = _resolve_api_key()
+
+        assert result is None
+
+    @patch("tgit.commit.settings")
+    @patch("tgit.commit.os.getenv")
+    def test_resolve_api_key_settings_override_env(self, mock_getenv, mock_settings):
+        """Test settings API key takes precedence over env var."""
+        mock_settings.api_key = "sk-settings"
+        mock_settings.provider = "openai"
+        mock_getenv.return_value = "sk-env"
+
+        result = _resolve_api_key()
+
+        assert result == "sk-settings"
+        mock_getenv.assert_not_called()
+
+
+class TestResolveBaseURL:
+    """Test _resolve_base_url function."""
+
+    @patch("tgit.commit.settings")
+    def test_resolve_base_url_from_settings(self, mock_settings):
+        """Test resolving base URL from settings."""
+        mock_settings.api_url = "https://custom.example.com/v1"
+        mock_settings.provider = "auto"
+
+        result = _resolve_base_url()
+
+        assert result == "https://custom.example.com/v1"
+
+    @patch("tgit.commit.settings")
+    def test_resolve_base_url_from_provider_preset(self, mock_settings):
+        """Test resolving base URL from provider preset."""
+        mock_settings.api_url = ""
+        mock_settings.provider = "deepseek"
+
+        result = _resolve_base_url()
+
+        assert result == "https://api.deepseek.com/v1"
+
+    @patch("tgit.commit.settings")
+    def test_resolve_base_url_none(self, mock_settings):
+        """Test resolving base URL when none is configured."""
+        mock_settings.api_url = ""
+        mock_settings.provider = "anthropic"
+
+        result = _resolve_base_url()
+
+        assert result is None
+
+
+class TestBuildLitellmModelName:
+    """Test _build_litellm_model_name function."""
+
+    @patch("tgit.commit.settings")
+    def test_build_litellm_model_name_openai(self, mock_settings):
+        """Test building litellm model name for OpenAI provider."""
+        mock_settings.provider = "openai"
+
+        result = _build_litellm_model_name("gpt-4o")
+
+        assert result == "openai/gpt-4o"
+
+    @patch("tgit.commit.settings")
+    def test_build_litellm_model_name_deepseek(self, mock_settings):
+        """Test building litellm model name for DeepSeek provider."""
+        mock_settings.provider = "deepseek"
+
+        result = _build_litellm_model_name("deepseek-chat")
+
+        assert result == "deepseek/deepseek-chat"
+
+    @patch("tgit.commit.settings")
+    def test_build_litellm_model_name_auto_no_prefix(self, mock_settings):
+        """Test auto provider returns model name as-is."""
+        mock_settings.provider = "auto"
+
+        result = _build_litellm_model_name("claude-3-5-sonnet-20241022")
+
+        assert result == "claude-3-5-sonnet-20241022"
+
+    @patch("tgit.commit.settings")
+    def test_build_litellm_model_name_already_prefixed(self, mock_settings):
+        """Test already prefixed model name is not double-prefixed."""
+        mock_settings.provider = "openai"
+
+        result = _build_litellm_model_name("openai/gpt-4o")
+
+        assert result == "openai/gpt-4o"
+
+    @patch("tgit.commit.settings")
+    def test_build_litellm_model_name_anthropic(self, mock_settings):
+        """Test building litellm model name for Anthropic provider."""
+        mock_settings.provider = "anthropic"
+
+        result = _build_litellm_model_name("claude-3-5-haiku-20241022")
+
+        assert result == "anthropic/claude-3-5-haiku-20241022"
+
+    @patch("tgit.commit.settings")
+    def test_build_litellm_model_name_gemini(self, mock_settings):
+        """Test building litellm model name for Gemini provider."""
+        mock_settings.provider = "gemini"
+
+        result = _build_litellm_model_name("gemini-2.5-flash")
+
+        assert result == "gemini/gemini-2.5-flash"
 
 
 class TestGenerateCommitWithAI:
-    """Test AI commit generation."""
+    """Test AI commit generation via litellm."""
 
-    @patch("tgit.commit._check_openai_availability")
-    @patch("tgit.commit._create_openai_client")
-    @patch("tgit.commit.console")
+    @pytest.fixture(autouse=True)
+    def setup_litellm_mock(self):
+        """Ensure litellm is mocked in sys.modules for lazy import."""
+        mock_litellm = Mock()
+        mock_litellm.completion = Mock()
+        with patch.dict("sys.modules", {"litellm": mock_litellm}):
+            yield mock_litellm
+
     @patch("tgit.commit.commit_prompt_template")
     @patch("tgit.commit.settings")
-    def test_generate_commit_with_ai_success(self, mock_settings, mock_template, mock_console, mock_create_client, mock_check):
+    @patch("tgit.commit._resolve_api_key")
+    @patch("tgit.commit._resolve_base_url")
+    def test_generate_commit_with_ai_success(
+        self, mock_resolve_url, mock_resolve_key, mock_settings, mock_template, setup_litellm_mock
+    ):
         """Test successful AI commit generation."""
-        mock_client = Mock()
-        mock_create_client.return_value = mock_client
+        mock_litellm = setup_litellm_mock
         mock_template.render.return_value = "system prompt"
-        mock_settings.model = "gpt-4"
+        mock_settings.model = "gpt-4o"
+        mock_settings.provider = "openai"
         mock_settings.reasoning_effort = ""
+        mock_resolve_key.return_value = "sk-test"
+        mock_resolve_url.return_value = "https://api.openai.com/v1"
 
-        # Mock the response
-        mock_response = Mock()
         mock_commit_data = CommitData(type="feat", scope="auth", msg="add login", is_breaking=False, secrets=[])
-        mock_response.output_parsed = mock_commit_data
-        mock_client.responses.parse.return_value = mock_response
+        mock_litellm.completion.return_value = mock_commit_data
 
         result = _generate_commit_with_ai("diff content", "feat", "main")
 
         assert result == mock_commit_data
-        mock_check.assert_called_once()
-        mock_create_client.assert_called_once()
-        mock_client.responses.parse.assert_called_once()
-        _, kwargs = mock_client.responses.parse.call_args
-        assert "max_output_tokens" not in kwargs
-        assert "reasoning" not in kwargs
+        mock_litellm.completion.assert_called_once()
+        _, kwargs = mock_litellm.completion.call_args
+        assert kwargs["model"] == "openai/gpt-4o"
+        assert kwargs["response_model"] == CommitData
+        assert kwargs["api_key"] == "sk-test"
+        assert kwargs["api_base"] == "https://api.openai.com/v1"
+        assert "reasoning_effort" not in kwargs
 
-    @patch("tgit.commit._check_openai_availability")
-    @patch("tgit.commit._create_openai_client")
-    @patch("tgit.commit.console")
-    def test_generate_commit_with_ai_failure(self, mock_console, mock_create_client, mock_check):
-        """Test AI commit generation failure."""
-        mock_client = Mock()
-        mock_create_client.return_value = mock_client
-        mock_client.responses.parse.side_effect = Exception("API Error")
-
-        with pytest.raises(Exception):
-            _generate_commit_with_ai("diff content", None, "main")
-
-    @patch("tgit.commit._check_openai_availability")
-    @patch("tgit.commit._create_openai_client")
-    @patch("tgit.commit.console")
     @patch("tgit.commit.commit_prompt_template")
     @patch("tgit.commit.settings")
-    def test_generate_commit_with_ai_reasoning_model(self, mock_settings, mock_template, mock_console, mock_create_client, mock_check):
-        """Test reasoning-capable models use the API default when not configured."""
-        mock_client = Mock()
-        mock_create_client.return_value = mock_client
+    @patch("tgit.commit._resolve_api_key")
+    @patch("tgit.commit._resolve_base_url")
+    def test_generate_commit_with_ai_no_key_no_url(
+        self, mock_resolve_url, mock_resolve_key, mock_settings, mock_template, setup_litellm_mock
+    ):
+        """Test AI commit generation without explicit API key or URL."""
+        mock_litellm = setup_litellm_mock
         mock_template.render.return_value = "system prompt"
-        mock_settings.model = "o1-mini"
+        mock_settings.model = "gpt-4o"
+        mock_settings.provider = "auto"
         mock_settings.reasoning_effort = ""
+        mock_resolve_key.return_value = None
+        mock_resolve_url.return_value = None
 
-        mock_response = Mock()
-        mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
-        mock_response.output_parsed = mock_commit_data
-        mock_client.responses.parse.return_value = mock_response
+        mock_commit_data = CommitData(type="fix", scope=None, msg="fix bug", is_breaking=False, secrets=[])
+        mock_litellm.completion.return_value = mock_commit_data
 
         result = _generate_commit_with_ai("diff content", None, "main")
 
         assert result == mock_commit_data
-        mock_check.assert_called_once()
-        mock_create_client.assert_called_once()
-        _, kwargs = mock_client.responses.parse.call_args
-        assert "reasoning" not in kwargs
+        _, kwargs = mock_litellm.completion.call_args
+        assert kwargs["model"] == "gpt-4o"
+        assert "api_key" not in kwargs
+        assert "api_base" not in kwargs
 
-    @patch("tgit.commit._check_openai_availability")
-    @patch("tgit.commit._create_openai_client")
-    @patch("tgit.commit.console")
     @patch("tgit.commit.commit_prompt_template")
     @patch("tgit.commit.settings")
-    def test_generate_commit_with_ai_gpt5_reasoning_model_uses_low_effort(
-        self, mock_settings, mock_template, mock_console, mock_create_client, mock_check
+    @patch("tgit.commit._resolve_api_key")
+    @patch("tgit.commit._resolve_base_url")
+    def test_generate_commit_with_ai_reasoning_effort(
+        self, mock_resolve_url, mock_resolve_key, mock_settings, mock_template, setup_litellm_mock
     ):
-        """Test GPT-5.4 models also use the API default when not configured."""
-        mock_client = Mock()
-        mock_create_client.return_value = mock_client
+        """Test AI commit generation with configured reasoning effort (OpenAI only)."""
+        mock_litellm = setup_litellm_mock
         mock_template.render.return_value = "system prompt"
         mock_settings.model = "gpt-5.4-mini"
-        mock_settings.reasoning_effort = ""
-
-        mock_response = Mock()
-        mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
-        mock_response.output_parsed = mock_commit_data
-        mock_client.responses.parse.return_value = mock_response
-
-        result = _generate_commit_with_ai("diff content", None, "main")
-
-        assert result == mock_commit_data
-        mock_check.assert_called_once()
-        mock_create_client.assert_called_once()
-        _, kwargs = mock_client.responses.parse.call_args
-        assert "reasoning" not in kwargs
-
-    @patch("tgit.commit._check_openai_availability")
-    @patch("tgit.commit._create_openai_client")
-    @patch("tgit.commit.console")
-    @patch("tgit.commit.commit_prompt_template")
-    @patch("tgit.commit.settings")
-    def test_generate_commit_with_ai_uses_configured_reasoning_effort(
-        self, mock_settings, mock_template, mock_console, mock_create_client, mock_check
-    ):
-        """Test configured reasoning effort overrides the default."""
-        mock_client = Mock()
-        mock_create_client.return_value = mock_client
-        mock_template.render.return_value = "system prompt"
-        mock_settings.model = "gpt-5.4-mini"
+        mock_settings.provider = "openai"
         mock_settings.reasoning_effort = "medium"
+        mock_resolve_key.return_value = "sk-test"
+        mock_resolve_url.return_value = None
 
-        mock_response = Mock()
         mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
-        mock_response.output_parsed = mock_commit_data
-        mock_client.responses.parse.return_value = mock_response
+        mock_litellm.completion.return_value = mock_commit_data
 
         result = _generate_commit_with_ai("diff content", None, "main")
 
         assert result == mock_commit_data
-        mock_check.assert_called_once()
-        mock_create_client.assert_called_once()
-        _, kwargs = mock_client.responses.parse.call_args
-        assert kwargs["reasoning"] == {"effort": "medium"}
+        _, kwargs = mock_litellm.completion.call_args
+        assert kwargs["reasoning_effort"] == "medium"
 
-    @patch("tgit.commit._check_openai_availability")
-    @patch("tgit.commit._create_openai_client")
-    @patch("tgit.commit.console")
     @patch("tgit.commit.commit_prompt_template")
     @patch("tgit.commit.settings")
-    def test_generate_commit_with_ai_rejects_unsupported_reasoning_effort(
-        self, mock_settings, mock_template, mock_console, mock_create_client, mock_check
+    @patch("tgit.commit._resolve_api_key")
+    @patch("tgit.commit._resolve_base_url")
+    def test_generate_commit_with_ai_no_reasoning_for_non_openai(
+        self, mock_resolve_url, mock_resolve_key, mock_settings, mock_template, setup_litellm_mock
     ):
-        """Test configured reasoning effort is validated for known model families."""
-        mock_client = Mock()
-        mock_create_client.return_value = mock_client
+        """Test reasoning effort is not passed for non-OpenAI providers."""
+        mock_litellm = setup_litellm_mock
         mock_template.render.return_value = "system prompt"
-        mock_settings.model = "gpt-5.4-mini"
-        mock_settings.reasoning_effort = "minimal"
+        mock_settings.model = "claude-3-5-haiku-20241022"
+        mock_settings.provider = "anthropic"
+        mock_settings.reasoning_effort = "high"
+        mock_resolve_key.return_value = "sk-test"
+        mock_resolve_url.return_value = None
 
-        with pytest.raises(click.ClickException, match=r"not supported by model 'gpt-5\.4-mini'"):
-            _generate_commit_with_ai("diff content", None, "main")
+        mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
+        mock_litellm.completion.return_value = mock_commit_data
+
+        result = _generate_commit_with_ai("diff content", None, "main")
+
+        assert result == mock_commit_data
+        _, kwargs = mock_litellm.completion.call_args
+        assert "reasoning_effort" not in kwargs
+
+    @patch("tgit.commit.commit_prompt_template")
+    @patch("tgit.commit.settings")
+    @patch("tgit.commit._resolve_api_key")
+    @patch("tgit.commit._resolve_base_url")
+    def test_generate_commit_with_ai_fallback_json_parse(
+        self, mock_resolve_url, mock_resolve_key, mock_settings, mock_template, setup_litellm_mock
+    ):
+        """Test fallback JSON parsing from completion text."""
+        mock_litellm = setup_litellm_mock
+        mock_template.render.return_value = "system prompt"
+        mock_settings.model = "gpt-4o"
+        mock_settings.provider = "auto"
+        mock_settings.reasoning_effort = ""
+        mock_resolve_key.return_value = None
+        mock_resolve_url.return_value = None
+
+        json_str = '{"type":"feat","scope":null,"msg":"add feature","is_breaking":false,"secrets":[]}'
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = json_str
+        mock_litellm.completion.return_value = mock_response
+
+        result = _generate_commit_with_ai("diff content", None, "main")
+
+        assert result is not None
+        assert result.type == "feat"
+        assert result.msg == "add feature"
 
 
 class TestGetAICommand:

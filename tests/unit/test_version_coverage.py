@@ -301,3 +301,48 @@ version = "invalid"
         mock_console.print.assert_called_with(f"Updating {file_path}")
         mock_show_diff.assert_called_once()
         assert 'version = "0.2.0"' in file_path.read_text()
+
+    @patch("tgit.version.update_file")
+    def test_update_version_in_file_build_gradle_kts(self, mock_update, tmp_path):
+        """Test update_version_in_file for build.gradle.kts."""
+        file_path = tmp_path / "build.gradle.kts"
+        update_version_in_file(0, "1.2.3", "build.gradle.kts", file_path)
+        mock_update.assert_called_once_with(
+            str(file_path), r'version\s*=\s*".*?"', 'version = "1.2.3"', 0, show_diff=False
+        )
+
+    @patch("tgit.version.update_file")
+    def test_update_version_in_file_package_json(self, mock_update, tmp_path):
+        """Test update_version_in_file for package.json."""
+        file_path = tmp_path / "package.json"
+        update_version_in_file(0, "1.2.3", "package.json", file_path)
+        mock_update.assert_called_once_with(
+            str(file_path), r'"version":\s*".*?"', '"version": "1.2.3"', 0, show_diff=False
+        )
+
+    @patch("tgit.version.update_file")
+    def test_update_version_in_file_version_txt(self, mock_update, tmp_path):
+        """Test update_version_in_file for VERSION.txt."""
+        file_path = tmp_path / "VERSION.txt"
+        update_version_in_file(0, "1.2.3", "VERSION.txt", file_path)
+        mock_update.assert_called_once_with(str(file_path), None, "1.2.3", 0, show_diff=False)
+
+    @patch("tgit.version.get_version_from_git", return_value=None)
+    def test_get_prev_version_default(self, mock_git, tmp_path):
+        """Test get_prev_version returns Version(0,0,0) when nothing is found."""
+        from tgit.version import get_prev_version
+        result = get_prev_version(str(tmp_path))
+        assert result.major == 0
+        assert result.minor == 0
+        assert result.patch == 0
+        mock_git.assert_called_once()
+
+    @patch("tgit.version.get_version_from_git")
+    def test_get_prev_version_from_git(self, mock_git, tmp_path):
+        """Test get_prev_version returns version from git when no files found."""
+        from tgit.version import get_prev_version, Version
+        mock_git.return_value = Version(2, 1, 0)
+        result = get_prev_version(str(tmp_path))
+        assert result.major == 2
+        assert result.minor == 1
+        assert result.patch == 0

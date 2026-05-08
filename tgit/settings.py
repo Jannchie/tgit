@@ -27,7 +27,7 @@ def settings_command(
         print("Use --interactive or -i for interactive configuration")
         raise click.Abort
 
-    available_keys = ["apiKey", "apiUrl", "model", "reasoning_effort", "show_command", "skip_confirm"]
+    available_keys = ["provider", "apiKey", "apiUrl", "model", "reasoning_effort", "show_command", "skip_confirm"]
 
     if key not in available_keys:
         print(f"Key {key} is not valid. Available keys: {', '.join(available_keys)}")

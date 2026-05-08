@@ -1,7 +1,6 @@
 import contextlib
 import importlib.metadata
 import sys
-import threading
 
 import click
 import setproctitle as setproctitle_module
@@ -50,12 +49,6 @@ def version_callback(ctx: click.Context, _param: click.Parameter, value: bool) -
 def app() -> None:
     set_process_title("tgit")
     set_terminal_title("tgit")
-
-    def import_openai() -> None:
-        with contextlib.suppress(Exception):
-            import openai  # noqa: F401, PLC0415
-
-    threading.Thread(target=import_openai).start()
 
 
 # Add individual commands directly to the main app

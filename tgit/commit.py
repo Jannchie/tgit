@@ -1,9 +1,9 @@
-import importlib
 import importlib.resources
 import itertools
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import click
 import git
@@ -11,12 +11,13 @@ from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel, Field
 from rich import get_console, print
 
-from tgit.constants import DEFAULT_MODEL, REASONING_MODEL_HINTS
+from tgit.constants import (
+    DEFAULT_MODEL,
+    OPENAI_REASONING_MODEL_HINTS,
+    PROVIDER_PRESETS,
+)
 from tgit.shared import settings
 from tgit.utils import get_commit_command, run_command, type_emojis
-
-if TYPE_CHECKING:
-    from openai import Client
 
 console = get_console()
 with importlib.resources.path("tgit", "prompts") as prompt_path:
@@ -85,40 +86,33 @@ class CommitData(BaseModel):
 
 
 def _supports_reasoning(model: str) -> bool:
-    """Return True when the selected model supports reasoning parameters."""
+    """Return True when the selected model supports OpenAI reasoning parameters."""
     if not model:
         return False
+    if settings.provider not in {"openai", "auto"}:
+        return False
     model_lower = model.lower()
-    return any(hint in model_lower for hint in REASONING_MODEL_HINTS)
+    return any(hint in model_lower for hint in OPENAI_REASONING_MODEL_HINTS)
 
 
-def _get_supported_reasoning_efforts(model: str) -> tuple[str, ...] | None:
-    """Return supported reasoning.effort values for known model families."""
-    if not model:
-        return None
-
-    model_lower = model.lower()
-    if model_lower.startswith("gpt-5.4-pro"):
-        return ("medium", "high", "xhigh")
-    if model_lower.startswith("gpt-5.4"):
-        return ("none", "low", "medium", "high", "xhigh")
-    if model_lower.startswith("gpt-5.1"):
-        return ("none", "low", "medium", "high")
-    if model_lower.startswith("gpt-5"):
-        return ("minimal", "low", "medium", "high")
-    return None
-
-
-def _validate_reasoning_effort_for_model(model: str, effort: str) -> None:
-    """Raise when a configured reasoning effort is unsupported for the selected model."""
-    supported_efforts = _get_supported_reasoning_efforts(model)
-    if supported_efforts and effort not in supported_efforts:
-        supported_values = ", ".join(supported_efforts)
-        error_message = (
-            f"Configured reasoning_effort '{effort}' is not supported by model '{model}'. "
-            f"Supported values: {supported_values}"
-        )
-        raise click.ClickException(error_message)
+def _build_litellm_model_name(model: str) -> str:
+    """Build the litellm model name with provider prefix if needed."""
+    provider = settings.provider
+    if not provider or provider == "auto":
+        return model
+    # Map provider to litellm prefix
+    provider_prefix_map = {
+        "openai": "openai",
+        "deepseek": "deepseek",
+        "anthropic": "anthropic",
+        "google": "gemini",
+        "gemini": "gemini",
+    }
+    prefix = provider_prefix_map.get(provider, provider)
+    # Don't double-prefix if model already has a prefix
+    if "/" in model:
+        return model
+    return f"{prefix}/{model}"
 
 
 def get_changed_files_from_status(repo: git.Repo) -> set[str]:
@@ -227,39 +221,39 @@ def _truncate_large_diff_sections(diff: str) -> str:
     return "".join(_truncate_diff_section(section) for section in sections)
 
 
-def _import_openai():  # type: ignore[misc]  # noqa: ANN202
-    """动态导入 openai 包"""
-    try:
-        # 动态导入，避免在模块级别导入
-        return importlib.import_module("openai")
-    except ImportError as e:
-        error_msg = "openai package is not installed"
-        raise ImportError(error_msg) from e
-
-
-def _check_openai_availability() -> None:
-    """检查 openai 包是否可用"""
-    _import_openai()  # 这会在包不可用时抛出异常
-
-
-def _create_openai_client() -> "Client":  # type: ignore[misc]
-    """创建并配置 OpenAI 客户端"""
-    openai = _import_openai()
-
-    # 准备客户端参数
-    kwargs = {}
+def _resolve_api_key() -> str | None:
+    """Resolve API key from settings or environment variables."""
     if settings.api_key:
-        kwargs["api_key"] = settings.api_key
-    if settings.api_url:
-        kwargs["base_url"] = settings.api_url
+        return settings.api_key
 
-    return openai.Client(**kwargs)
+    provider = settings.provider
+    if provider in PROVIDER_PRESETS:
+        env_var = PROVIDER_PRESETS[provider][1]
+        if env_var:
+            env_key = os.getenv(env_var)
+            if env_key:
+                return env_key
+
+    return None
+
+
+def _resolve_base_url() -> str | None:
+    """Resolve base URL from settings or provider defaults."""
+    if settings.api_url:
+        return settings.api_url
+
+    provider = settings.provider
+    if provider in PROVIDER_PRESETS:
+        default_url = PROVIDER_PRESETS[provider][0]
+        if default_url:
+            return default_url
+
+    return None
 
 
 def _generate_commit_with_ai(diff: str, specified_type: str | None, current_branch: str) -> CommitData | None:
-    """使用 AI 生成提交消息"""
-    _check_openai_availability()
-    client = _create_openai_client()
+    """Use AI to generate a commit message via litellm."""
+    import litellm  # noqa: PLC0415
 
     template_params = TemplateParams(
         types=commit_types,
@@ -267,28 +261,44 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
         specified_type=specified_type,
     )
 
-    with console.status("[bold green]Generating commit message...[/bold green]"):
-        model_name = settings.model or DEFAULT_MODEL
-        request_kwargs: dict[str, Any] = {
-            "input": [
-                {
-                    "role": "system",
-                    "content": commit_prompt_template.render(**template_params.__dict__),
-                },
-                {"role": "user", "content": diff},
-            ],
-            "model": model_name,
-            "text_format": CommitData,
-        }
-        if _supports_reasoning(model_name) and settings.reasoning_effort:
-            _validate_reasoning_effort_for_model(model_name, settings.reasoning_effort)
-            request_kwargs["reasoning"] = {"effort": settings.reasoning_effort}
+    model_name = settings.model or DEFAULT_MODEL
+    litellm_model = _build_litellm_model_name(model_name)
 
-        chat_completion = client.responses.parse(
-            **request_kwargs,
+    api_key = _resolve_api_key()
+    base_url = _resolve_base_url()
+
+    litellm_kwargs: dict[str, Any] = {}
+    if api_key:
+        litellm_kwargs["api_key"] = api_key
+    if base_url:
+        litellm_kwargs["api_base"] = base_url
+
+    messages = [
+        {"role": "system", "content": commit_prompt_template.render(**template_params.__dict__)},
+        {"role": "user", "content": diff},
+    ]
+
+    # OpenAI-specific reasoning effort
+    if _supports_reasoning(model_name) and settings.reasoning_effort:
+        litellm_kwargs["reasoning_effort"] = settings.reasoning_effort
+
+    with console.status("[bold green]Generating commit message...[/bold green]"):
+        response = litellm.completion(
+            model=litellm_model,
+            messages=messages,
+            response_model=CommitData,
+            **litellm_kwargs,
         )
 
-    return chat_completion.output_parsed
+    # litellm returns the Pydantic model directly when response_model is used
+    if isinstance(response, CommitData):
+        return response
+    # Fallback: extract from choices (litellm returns ModelResponse when response_model unsupported)
+    choices = getattr(response, "choices", [])
+    content = choices[0].message.content if choices else ""
+    if content:
+        return CommitData.model_validate_json(content)
+    return None
 
 
 def _get_repo_for_ai(current_dir: Path) -> git.Repo | None:

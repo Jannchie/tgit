@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 from tgit.cli import app
 from tgit.utils import (
+    _merge_settings,
     load_global_settings,
     load_workspace_settings,
     set_global_settings,
@@ -14,6 +15,30 @@ from tgit.utils import (
 
 class TestUtilsCoverage:
     """Additional tests to increase coverage for utils and cli."""
+
+    def test_merge_settings_nested_dict(self):
+        """Test _merge_settings with nested dict values."""
+        base = {"commit": {"emoji": False, "types": []}, "apiKey": "base-key"}
+        override = {"commit": {"emoji": True}}
+        result = _merge_settings(base, override)
+        assert result["commit"]["emoji"] is True
+        assert result["commit"]["types"] == []  # preserved from base
+        assert result["apiKey"] == "base-key"  # preserved from base
+
+    def test_merge_settings_flat_override(self):
+        """Test _merge_settings with flat key override."""
+        base = {"apiKey": "old", "model": "gpt-4"}
+        override = {"apiKey": "new"}
+        result = _merge_settings(base, override)
+        assert result["apiKey"] == "new"
+        assert result["model"] == "gpt-4"
+
+    def test_merge_settings_scalar_overrides_dict(self):
+        """Test _merge_settings when override replaces a dict with a scalar."""
+        base = {"commit": {"emoji": False}}
+        override = {"commit": "not-a-dict"}
+        result = _merge_settings(base, override)
+        assert result["commit"] == "not-a-dict"
 
     def test_load_global_settings_empty_json(self, tmp_path):
         """Test load_global_settings with empty JSON (returns None)."""
@@ -75,42 +100,11 @@ class TestUtilsCoverage:
             settings = load_workspace_settings()
             assert settings == {}
 
-    @patch("tgit.cli.threading.Thread")
-    def test_cli_app_import_openai(self, mock_thread):
-        """Test cli app triggers openai import."""
-        # Mock Thread to run target immediately
-        def run_target(target=None, **kwargs):
-            target()
-            return Mock()
-            
-        mock_thread.side_effect = run_target
-        
-        runner = CliRunner()
-        # Invoke with a subcommand to ensure group function runs
-        # We use a non-existent command to trigger group execution before error?
-        # Or use 'version' command if available.
-        # Let's use 'settings' command which is added.
-        result = runner.invoke(app, ["settings", "--help"])
-        
-        assert result.exit_code == 0
-        mock_thread.assert_called()
-
-    @patch("tgit.cli.threading.Thread")
-    def test_cli_app_import_openai_exception(self, mock_thread):
-        """Test cli app handles openai import exception."""
-        def run_target(target=None, **kwargs):
-            # Mock import to raise exception
-            with patch("builtins.__import__", side_effect=ImportError("fail")):
-                target()
-            return Mock()
-            
-        mock_thread.side_effect = run_target
-        
+    def test_cli_app_basic(self):
+        """Test cli app runs without errors."""
         runner = CliRunner()
         result = runner.invoke(app, ["settings", "--help"])
-        
         assert result.exit_code == 0
-        mock_thread.assert_called()
 
     def test_version_callback(self):
         """Test version callback."""

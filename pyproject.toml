@@ -7,7 +7,7 @@ dependencies = [
     "rich>=13.9.4",
     "pyyaml>=6.0.2",
     "gitpython>=3.1.44",
-    "openai>=1.52.0",
+    "litellm>=1.50.0",
     "jinja2>=3.1.4",
     "questionary>=2.0.1",
     "beautifulsoup4>=4.13.3",
@@ -81,6 +81,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"tgit/interactive_settings.py" = [
+    "FBT001",
+    "ANN401",
+    "PLR0913",
+]
 "tests/**/*.py" = [
     "S101",
     "ANN",
@@ -90,7 +95,10 @@ ignore = [
     "COM812",
     "I001",
     "F401",
+    "F841",
     "PLR2004",
+    "PLC0415",
+    "SIM117",
     "ARG001",
     "ARG002",
     "PLR0913",

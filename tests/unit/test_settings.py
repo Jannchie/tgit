@@ -54,7 +54,7 @@ class TestSettings:
         result = runner.invoke(settings_command, ["invalid_key", "test"])
 
         assert result.exit_code == 1
-        available_keys = ["apiKey", "apiUrl", "model", "reasoning_effort", "show_command", "skip_confirm"]
+        available_keys = ["provider", "apiKey", "apiUrl", "model", "reasoning_effort", "show_command", "skip_confirm"]
         mock_print.assert_called_once_with(f"Key invalid_key is not valid. Available keys: {', '.join(available_keys)}")
 
     @patch("tgit.settings.set_global_settings")

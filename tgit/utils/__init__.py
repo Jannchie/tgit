@@ -8,7 +8,7 @@ import questionary
 import rich
 from rich.syntax import Syntax
 
-from tgit.constants import DEFAULT_MODEL
+from tgit.constants import DEFAULT_MODEL, PROVIDER_PRESETS
 from tgit.types import CommitSettings, CommitType, TGitSettings
 
 console = rich.get_console()
@@ -144,11 +144,18 @@ def _dict_to_settings(data: dict[str, Any]) -> TGitSettings:
         types=commit_types,
     )
 
+    provider = data.get("provider", "auto")
+    # If no explicit model, use the provider's default
+    default_model = DEFAULT_MODEL
+    if provider in PROVIDER_PRESETS:
+        default_model = PROVIDER_PRESETS[provider][2]
+
     return TGitSettings(
         commit=commit_settings,
+        provider=provider,
         api_key=data.get("apiKey", ""),
         api_url=data.get("apiUrl", ""),
-        model=data.get("model") or DEFAULT_MODEL,
+        model=data.get("model") or default_model,
         reasoning_effort=data.get("reasoning_effort", ""),
         show_command=data.get("show_command", True),
         skip_confirm=data.get("skip_confirm", False),
