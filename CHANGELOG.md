@@ -1,3 +1,11 @@
+## v0.33.0
+
+[v0.32.1...v0.33.0](https://github.com/Jannchie/tgit/compare/v0.32.1...v0.33.0)
+
+### :sparkles: Features
+
+- **ai**: add litellm provider support - By [Jannchie](mailto:jannchie@gmail.com) in [344b360](https://github.com/Jannchie/tgit/commit/344b360)
+
 ## v0.32.1
 
 [v0.32.0...v0.32.1](https://github.com/Jannchie/tgit/compare/v0.32.0...v0.32.1)
