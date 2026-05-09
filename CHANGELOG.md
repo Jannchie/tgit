@@ -1,3 +1,11 @@
+## v0.33.1
+
+[v0.33.0...v0.33.1](https://github.com/Jannchie/tgit/compare/v0.33.0...v0.33.1)
+
+### :adhesive_bandage: Fixes
+
+- **ai**: correct response handling for commit generation - By [Jannchie](mailto:jannchie@gmail.com) in [163a208](https://github.com/Jannchie/tgit/commit/163a208)
+
 ## v0.33.0
 
 [v0.32.1...v0.33.0](https://github.com/Jannchie/tgit/compare/v0.32.1...v0.33.0)
