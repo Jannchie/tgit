@@ -286,14 +286,11 @@ def _generate_commit_with_ai(diff: str, specified_type: str | None, current_bran
         response = litellm.completion(
             model=litellm_model,
             messages=messages,
-            response_model=CommitData,
+            response_format=CommitData,
             **litellm_kwargs,
         )
 
-    # litellm returns the Pydantic model directly when response_model is used
-    if isinstance(response, CommitData):
-        return response
-    # Fallback: extract from choices (litellm returns ModelResponse when response_model unsupported)
+    # Extract structured output from the response
     choices = getattr(response, "choices", [])
     content = choices[0].message.content if choices else ""
     if content:

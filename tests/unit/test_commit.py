@@ -495,7 +495,10 @@ class TestGenerateCommitWithAI:
         mock_resolve_url.return_value = "https://api.openai.com/v1"
 
         mock_commit_data = CommitData(type="feat", scope="auth", msg="add login", is_breaking=False, secrets=[])
-        mock_litellm.completion.return_value = mock_commit_data
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = mock_commit_data.model_dump_json()
+        mock_litellm.completion.return_value = mock_response
 
         result = _generate_commit_with_ai("diff content", "feat", "main")
 
@@ -503,7 +506,7 @@ class TestGenerateCommitWithAI:
         mock_litellm.completion.assert_called_once()
         _, kwargs = mock_litellm.completion.call_args
         assert kwargs["model"] == "openai/gpt-4o"
-        assert kwargs["response_model"] == CommitData
+        assert kwargs["response_format"] == CommitData
         assert kwargs["api_key"] == "sk-test"
         assert kwargs["api_base"] == "https://api.openai.com/v1"
         assert "reasoning_effort" not in kwargs
@@ -525,7 +528,10 @@ class TestGenerateCommitWithAI:
         mock_resolve_url.return_value = None
 
         mock_commit_data = CommitData(type="fix", scope=None, msg="fix bug", is_breaking=False, secrets=[])
-        mock_litellm.completion.return_value = mock_commit_data
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = mock_commit_data.model_dump_json()
+        mock_litellm.completion.return_value = mock_response
 
         result = _generate_commit_with_ai("diff content", None, "main")
 
@@ -552,7 +558,10 @@ class TestGenerateCommitWithAI:
         mock_resolve_url.return_value = None
 
         mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
-        mock_litellm.completion.return_value = mock_commit_data
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = mock_commit_data.model_dump_json()
+        mock_litellm.completion.return_value = mock_response
 
         result = _generate_commit_with_ai("diff content", None, "main")
 
@@ -577,7 +586,10 @@ class TestGenerateCommitWithAI:
         mock_resolve_url.return_value = None
 
         mock_commit_data = CommitData(type="fix", scope=None, msg="correct bug", is_breaking=False, secrets=[])
-        mock_litellm.completion.return_value = mock_commit_data
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = mock_commit_data.model_dump_json()
+        mock_litellm.completion.return_value = mock_response
 
         result = _generate_commit_with_ai("diff content", None, "main")
 
