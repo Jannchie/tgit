@@ -146,17 +146,30 @@ def get_prev_version(path: str) -> Version:
     return Version(major=0, minor=0, patch=0)
 
 
-def get_version_from_files(path: Path) -> Version | None:  # noqa: PLR0911
-    # sourcery skip: assign-if-exp, reintroduce-else
+def get_version_from_files(path: Path) -> Version | None:
+    return _get_version_from_python_files(path) or _get_version_from_other_files(path)
+
+
+def _get_version_from_python_files(path: Path) -> Version | None:
     if version := get_version_from_package_json(path):
         return version
     if version := get_version_from_pyproject_toml(path):
         return version
     if version := get_version_from_about_py(path):
         return version
+    if version := get_version_from_init_py(path):
+        return version
     if version := get_version_from_setup_py(path):
         return version
+    return None
+
+
+def _get_version_from_other_files(path: Path) -> Version | None:  # noqa: PLR0911
     if version := get_version_from_cargo_toml(path):
+        return version
+    if version := get_version_from_pubspec_yaml(path):
+        return version
+    if version := get_version_from_chart_yaml(path):
         return version
     if version := get_version_from_version_file(path):
         return version
@@ -267,6 +280,75 @@ def _about_py_hints_from_pyproject(path: Path) -> tuple[list[Path], list[str]]:
                 package_names.append(Path(pkg).name)
 
     return candidates, package_names
+
+
+VERSION_DUNDER_RE = re.compile(r"__version__\s*=\s*['\"]([^'\"]+)['\"]")
+
+
+def get_version_from_init_py(path: Path) -> Version | None:
+    for init_path in _find_init_py_paths(path):
+        if match := VERSION_DUNDER_RE.search(init_path.read_text(encoding="utf-8")):
+            try:
+                return Version.from_str(match[1])
+            except ValueError:
+                continue
+    return None
+
+
+def _find_init_py_paths(path: Path) -> list[Path]:
+    _, package_names = _about_py_hints_from_pyproject(path)
+    candidates: list[Path] = []
+    for pkg in package_names:
+        candidates.append(path / pkg / "__init__.py")
+        candidates.append(path / "src" / pkg / "__init__.py")
+
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if candidate.is_file() and _init_py_has_version(candidate):
+            unique.append(candidate)
+    return unique
+
+
+def _init_py_has_version(file_path: Path) -> bool:
+    try:
+        return bool(VERSION_DUNDER_RE.search(file_path.read_text(encoding="utf-8")))
+    except OSError:
+        return False
+
+
+PUBSPEC_VERSION_RE = re.compile(r"^version\s*:\s*['\"]?([^\s'\"#]+)['\"]?", re.MULTILINE)
+
+
+def get_version_from_pubspec_yaml(path: Path) -> Version | None:
+    pubspec_path = path / "pubspec.yaml"
+    if not pubspec_path.exists():
+        return None
+    if match := PUBSPEC_VERSION_RE.search(pubspec_path.read_text(encoding="utf-8")):
+        try:
+            return Version.from_str(match[1])
+        except ValueError:
+            return None
+    return None
+
+
+CHART_VERSION_RE = re.compile(r"^version\s*:\s*['\"]?([^\s'\"#]+)['\"]?", re.MULTILINE)
+
+
+def get_version_from_chart_yaml(path: Path) -> Version | None:
+    chart_path = path / "Chart.yaml"
+    if not chart_path.exists():
+        return None
+    if match := CHART_VERSION_RE.search(chart_path.read_text(encoding="utf-8")):
+        try:
+            return Version.from_str(match[1])
+        except ValueError:
+            return None
+    return None
 
 
 def get_version_from_setup_py(path: Path) -> Version | None:
@@ -472,7 +554,19 @@ def _should_ignore_path(path: Path, root_path: Path, gitignore_patterns: list[st
 def get_detected_files(path: str) -> list[Path]:
     """获取递归模式下检测到的所有版本文件。"""
     current_path = Path(path).resolve()
-    filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts", "__about__.py"]
+    filenames = [
+        "package.json",
+        "pyproject.toml",
+        "setup.py",
+        "Cargo.toml",
+        "VERSION",
+        "VERSION.txt",
+        "build.gradle.kts",
+        "__about__.py",
+        "__init__.py",
+        "pubspec.yaml",
+        "Chart.yaml",
+    ]
     detected_files: list[Path] = []
 
     # Parse gitignore patterns
@@ -493,10 +587,15 @@ def get_detected_files(path: str) -> list[Path]:
 
         # Check files
         for file in files:
-            if file in filenames:
-                file_path = root_path / file
-                if not _should_ignore_path(file_path, current_path, gitignore_patterns):
-                    detected_files.append(file_path)
+            if file not in filenames:
+                continue
+            file_path = root_path / file
+            if _should_ignore_path(file_path, current_path, gitignore_patterns):
+                continue
+            # __init__.py is ubiquitous; only include it when it actually carries a __version__
+            if file == "__init__.py" and not _init_py_has_version(file_path):
+                continue
+            detected_files.append(file_path)
 
     return detected_files
 
@@ -504,7 +603,17 @@ def get_detected_files(path: str) -> list[Path]:
 def get_root_detected_files(path: str) -> list[Path]:
     """获取根目录下检测到的所有版本文件。"""
     current_path = Path(path).resolve()
-    filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts"]
+    filenames = [
+        "package.json",
+        "pyproject.toml",
+        "setup.py",
+        "Cargo.toml",
+        "VERSION",
+        "VERSION.txt",
+        "build.gradle.kts",
+        "pubspec.yaml",
+        "Chart.yaml",
+    ]
     detected_files: list[Path] = []
 
     for filename in filenames:
@@ -513,6 +622,7 @@ def get_root_detected_files(path: str) -> list[Path]:
             detected_files.append(file_path)
 
     detected_files.extend(_find_about_py_paths(current_path))
+    detected_files.extend(_find_init_py_paths(current_path))
 
     return detected_files
 
@@ -768,11 +878,19 @@ def update_version_in_file(verbose: int, next_version_str: str, file: str, file_
         update_cargo_toml_version(str(file_path), next_version_str, verbose, show_diff=show_diff)
     elif file in ("VERSION", "VERSION.txt"):
         update_file(str(file_path), None, next_version_str, verbose, show_diff=show_diff)
-    elif file == "__about__.py":
+    elif file in ("__about__.py", "__init__.py"):
         update_file(
             str(file_path),
             r"__version__\s*=\s*['\"][^'\"]*['\"]",
             f'__version__ = "{next_version_str}"',
+            verbose,
+            show_diff=show_diff,
+        )
+    elif file in ("pubspec.yaml", "Chart.yaml"):
+        update_file(
+            str(file_path),
+            r"(?m)^version\s*:\s*['\"]?[^\s'\"#]+['\"]?",
+            f"version: {next_version_str}",
             verbose,
             show_diff=show_diff,
         )

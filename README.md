@@ -40,9 +40,28 @@ TGIT is an AI-powered Git CLI for commit messages, changelog generation, and sem
 ### 🔢 Intelligent Version Management
 
 - Semantic versioning with pre-release support
-- Support for multiple project files (package.json, pyproject.toml, Cargo.toml, etc.)
 - Automatic version bumping based on commit history
 - Git tagging integration
+- Detects and updates version strings across many project file formats (see below)
+
+#### Supported version file formats
+
+| Ecosystem | File | Notes |
+| --- | --- | --- |
+| Node / npm | `package.json` | `"version": "x.y.z"` |
+| Python | `pyproject.toml` | `[project].version`, `[tool.poetry].version`, `[tool.flit.metadata].version`, `[tool.setuptools]` |
+| Python | `__about__.py` | `__version__ = "x.y.z"` — auto-discovered via `[tool.hatch.version].path`, `[tool.hatch.build.targets.wheel].packages`, or `[project].name` (also checks `src/<pkg>/`) |
+| Python | `__init__.py` | `__version__ = "x.y.z"` — only files that actually define `__version__` are touched, located in the same package dirs as `__about__.py` |
+| Python | `setup.py` | `version="x.y.z"` |
+| Rust | `Cargo.toml` | `version` inside the `[package]` section only |
+| Gradle (Kotlin DSL) | `build.gradle.kts` | `version = "x.y.z"` |
+| Dart / Flutter | `pubspec.yaml` | `version: x.y.z` (supports `+build` and quoted values) |
+| Helm | `Chart.yaml` | `version: x.y.z` (`apiVersion` and `appVersion` are left untouched) |
+| Generic | `VERSION`, `VERSION.txt` | Plain-text file containing only the version string |
+
+If no version file is found, TGIT falls back to the latest `v*` git tag.
+
+In recursive mode (default), TGIT walks the working tree to bump every detected file at once — useful for monorepos. Use `--no-recursive` to limit updates to the project root.
 
 ### ⚙️ Flexible Configuration
 
