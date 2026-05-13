@@ -152,6 +152,8 @@ def get_version_from_files(path: Path) -> Version | None:  # noqa: PLR0911
         return version
     if version := get_version_from_pyproject_toml(path):
         return version
+    if version := get_version_from_about_py(path):
+        return version
     if version := get_version_from_setup_py(path):
         return version
     if version := get_version_from_cargo_toml(path):
@@ -201,6 +203,70 @@ def get_version_from_pyproject_toml(path: Path) -> Version | None:
                 continue
 
     return None
+
+
+def get_version_from_about_py(path: Path) -> Version | None:
+    for about_path in _find_about_py_paths(path):
+        with about_path.open(encoding="utf-8") as f:
+            content = f.read()
+        if match := re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content):
+            try:
+                return Version.from_str(match[1])
+            except ValueError:
+                continue
+    return None
+
+
+def _find_about_py_paths(path: Path) -> list[Path]:
+    candidates, package_names = _about_py_hints_from_pyproject(path)
+
+    for pkg in package_names:
+        candidates.append(path / pkg / "__about__.py")
+        candidates.append(path / "src" / pkg / "__about__.py")
+
+    candidates.append(path / "__about__.py")
+
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if candidate.is_file():
+            unique.append(candidate)
+    return unique
+
+
+def _about_py_hints_from_pyproject(path: Path) -> tuple[list[Path], list[str]]:
+    candidates: list[Path] = []
+    package_names: list[str] = []
+
+    pyproject_path = path / "pyproject.toml"
+    if not pyproject_path.exists():
+        return candidates, package_names
+
+    try:
+        with pyproject_path.open("rb") as f:
+            toml_data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return candidates, package_names
+
+    hatch_version_path = toml_data.get("tool", {}).get("hatch", {}).get("version", {}).get("path")
+    if isinstance(hatch_version_path, str):
+        candidates.append(path / hatch_version_path)
+
+    if project_name := toml_data.get("project", {}).get("name"):
+        package_names.append(str(project_name).replace("-", "_"))
+
+    wheel_packages = toml_data.get("tool", {}).get("hatch", {}).get("build", {}).get("targets", {}).get("wheel", {}).get("packages")
+    if isinstance(wheel_packages, list):
+        for pkg in wheel_packages:
+            if isinstance(pkg, str):
+                candidates.append(path / pkg / "__about__.py")
+                package_names.append(Path(pkg).name)
+
+    return candidates, package_names
 
 
 def get_version_from_setup_py(path: Path) -> Version | None:
@@ -406,7 +472,7 @@ def _should_ignore_path(path: Path, root_path: Path, gitignore_patterns: list[st
 def get_detected_files(path: str) -> list[Path]:
     """获取递归模式下检测到的所有版本文件。"""
     current_path = Path(path).resolve()
-    filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts"]
+    filenames = ["package.json", "pyproject.toml", "setup.py", "Cargo.toml", "VERSION", "VERSION.txt", "build.gradle.kts", "__about__.py"]
     detected_files: list[Path] = []
 
     # Parse gitignore patterns
@@ -445,6 +511,8 @@ def get_root_detected_files(path: str) -> list[Path]:
         file_path = current_path / filename
         if file_path.exists():
             detected_files.append(file_path)
+
+    detected_files.extend(_find_about_py_paths(current_path))
 
     return detected_files
 
@@ -700,6 +768,14 @@ def update_version_in_file(verbose: int, next_version_str: str, file: str, file_
         update_cargo_toml_version(str(file_path), next_version_str, verbose, show_diff=show_diff)
     elif file in ("VERSION", "VERSION.txt"):
         update_file(str(file_path), None, next_version_str, verbose, show_diff=show_diff)
+    elif file == "__about__.py":
+        update_file(
+            str(file_path),
+            r"__version__\s*=\s*['\"][^'\"]*['\"]",
+            f'__version__ = "{next_version_str}"',
+            verbose,
+            show_diff=show_diff,
+        )
 
 
 def update_file_in_root(next_version_str: str, verbose: int, root_path: Path, *, show_diff: bool = True) -> None:
