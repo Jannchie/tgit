@@ -1,3 +1,16 @@
+## v0.34.0
+
+[v0.33.1...v0.34.0](https://github.com/Jannchie/tgit/compare/v0.33.1...v0.34.0)
+
+### :sparkles: Features
+
+- **version**: add support for additional version file formats - By [Jannchie](mailto:jannchie@gmail.com) in [36f6189](https://github.com/Jannchie/tgit/commit/36f6189)
+- **version**: add support for __about__.py versioning - By [Jannchie](mailto:jannchie@gmail.com) in [d90cd8b](https://github.com/Jannchie/tgit/commit/d90cd8b)
+
+### :wrench: Chores
+
+- **.tgit**: update settings to enable emoji commits - By [Jannchie](mailto:jannchie@gmail.com) in [ae2dabc](https://github.com/Jannchie/tgit/commit/ae2dabc)
+
 ## v0.33.1
 
 [v0.33.0...v0.33.1](https://github.com/Jannchie/tgit/compare/v0.33.0...v0.33.1)
