@@ -1,3 +1,11 @@
+## v0.34.1
+
+[v0.34.0...v0.34.1](https://github.com/Jannchie/tgit/compare/v0.34.0...v0.34.1)
+
+### :adhesive_bandage: Fixes
+
+- **version**: add utf-8 encoding for file reading - By [Jannchie](mailto:jannchie@gmail.com) in [d68a815](https://github.com/Jannchie/tgit/commit/d68a815)
+
 ## v0.34.0
 
 [v0.33.1...v0.34.0](https://github.com/Jannchie/tgit/compare/v0.33.1...v0.34.0)
