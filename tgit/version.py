@@ -354,7 +354,7 @@ def get_version_from_chart_yaml(path: Path) -> Version | None:
 def get_version_from_setup_py(path: Path) -> Version | None:
     setup_py_path = path / "setup.py"
     if setup_py_path.exists():
-        with setup_py_path.open(encoding="utf-8") as f:
+        with setup_py_path.open(encoding="utf-8", errors="replace") as f:
             setup_data = f.read()
             if res := re.search(r"version=['\"]([^'\"]+)['\"]", setup_data):
                 try:
@@ -413,7 +413,7 @@ def get_version_from_cargo_toml(directory_path: Path) -> Version | None:
 def get_version_from_version_file(path: Path) -> Version | None:
     version_path = path / "VERSION"
     if version_path.exists():
-        with version_path.open(encoding="utf-8") as f:
+        with version_path.open(encoding="utf-8", errors="replace") as f:
             version = f.read().strip()
             try:
                 return Version.from_str(version)
@@ -425,7 +425,7 @@ def get_version_from_version_file(path: Path) -> Version | None:
 def get_version_from_version_txt(path: Path) -> Version | None:
     version_txt_path = path / "VERSION.txt"
     if version_txt_path.exists():
-        with version_txt_path.open(encoding="utf-8") as f:
+        with version_txt_path.open(encoding="utf-8", errors="replace") as f:
             version = f.read().strip()
             try:
                 return Version.from_str(version)
@@ -437,7 +437,7 @@ def get_version_from_version_txt(path: Path) -> Version | None:
 def get_version_from_build_gradle_kts(path: Path) -> Version | None:
     build_gradle_kts_path = path / "build.gradle.kts"
     if build_gradle_kts_path.exists():
-        with build_gradle_kts_path.open(encoding="utf-8") as f:
+        with build_gradle_kts_path.open(encoding="utf-8", errors="replace") as f:
             content = f.read()
             if res := re.search(r'version\s*=\s*"([^"]+)"', content):
                 try:
@@ -918,7 +918,7 @@ def update_file(filename: str, search_pattern: str | None, replace_text: str, ve
         return
     if verbose > 0:
         console.print(f"Updating {file_path}")
-    with file_path.open(encoding="utf-8") as f:
+    with file_path.open(encoding="utf-8", errors="replace") as f:
         content = f.read()
     new_content = re.sub(search_pattern, replace_text, content) if search_pattern else replace_text
     if show_diff:
@@ -935,7 +935,7 @@ def update_cargo_toml_version(filename: str, next_version_str: str, verbose: int
     if verbose > 0:
         console.print(f"Updating {file_path}")
 
-    with file_path.open(encoding="utf-8") as f:
+    with file_path.open(encoding="utf-8", errors="replace") as f:
         content = f.read()
 
     # Use regex to match version in [package] section only
