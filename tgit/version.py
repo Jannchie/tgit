@@ -15,6 +15,7 @@ from pathlib import Path
 import click
 import git
 import questionary
+import yaml
 from questionary import Choice
 
 from tgit.changelog import get_commits, get_git_commits_range, group_commits_by_type, handle_changelog
@@ -182,15 +183,115 @@ def _get_version_from_other_files(path: Path) -> Version | None:  # noqa: PLR091
 
 def get_version_from_package_json(path: Path) -> Version | None:
     package_json_path = path / "package.json"
-    if package_json_path.exists():
-        with package_json_path.open(encoding="utf-8") as f:
-            json_data = json.load(f)
-            if version := json_data.get("version"):
-                try:
-                    return Version.from_str(version)
-                except ValueError:
-                    return None
-    return None
+    if not package_json_path.exists():
+        return None
+    json_data = _read_json_file(package_json_path)
+    if json_data is None:
+        return None
+    if version := json_data.get("version"):
+        try:
+            return Version.from_str(version)
+        except ValueError:
+            return None
+    # pnpm/npm/yarn workspace roots routinely omit `version` (the root
+    # is `"private": true` and only orchestrates sub-packages). Fall
+    # back to the highest version found among workspace children so a
+    # bump still has a sensible baseline.
+    return _version_from_workspace_children(path)
+
+
+def _read_json_file(path: Path) -> dict | None:
+    try:
+        with path.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _workspace_package_globs(root: Path) -> list[str]:
+    """Collect workspace package globs from pnpm-workspace.yaml and
+    package.json `workspaces` (both list and object forms). Negation
+    patterns (`!...`) are skipped — the bump shouldn't have to
+    duplicate pnpm's full filter logic."""
+    globs: list[str] = []
+
+    pnpm_workspace = root / "pnpm-workspace.yaml"
+    if pnpm_workspace.is_file():
+        try:
+            data = yaml.safe_load(pnpm_workspace.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            data = None
+        if isinstance(data, dict):
+            packages = data.get("packages")
+            if isinstance(packages, list):
+                globs.extend(p for p in packages if isinstance(p, str) and not p.startswith("!"))
+
+    pkg_data = _read_json_file(root / "package.json")
+    if pkg_data:
+        workspaces = pkg_data.get("workspaces")
+        if isinstance(workspaces, list):
+            globs.extend(p for p in workspaces if isinstance(p, str) and not p.startswith("!"))
+        elif isinstance(workspaces, dict):
+            packages = workspaces.get("packages")
+            if isinstance(packages, list):
+                globs.extend(p for p in packages if isinstance(p, str) and not p.startswith("!"))
+
+    return globs
+
+
+def find_workspace_package_jsons(root: Path) -> list[Path]:
+    """Resolve workspace globs to a deduplicated list of child
+    package.json paths. The root manifest itself is excluded so it
+    can be handled separately as the bump target."""
+    globs = _workspace_package_globs(root)
+    if not globs:
+        return []
+
+    seen: set[Path] = set()
+    result: list[Path] = []
+    root_resolved = root.resolve()
+    for pattern in globs:
+        # "." / "" resolve back to the root and crash Path.glob on some
+        # Python versions; never useful for "find sub-packages" anyway.
+        if not pattern or pattern.strip(". /") == "":
+            continue
+        try:
+            matches = list(root.glob(pattern))
+        except (ValueError, OSError, IndexError):
+            continue
+        for match in matches:
+            if not match.is_dir():
+                continue
+            pkg_json = match / "package.json"
+            if not pkg_json.is_file():
+                continue
+            resolved = pkg_json.resolve()
+            if resolved == root_resolved / "package.json" or resolved in seen:
+                continue
+            seen.add(resolved)
+            result.append(pkg_json)
+    return result
+
+
+def _version_from_workspace_children(root: Path) -> Version | None:
+    versions: list[Version] = []
+    for pkg_json in find_workspace_package_jsons(root):
+        data = _read_json_file(pkg_json)
+        if data is None:
+            continue
+        version_str = data.get("version")
+        if not isinstance(version_str, str) or not version_str:
+            continue
+        try:
+            versions.append(Version.from_str(version_str))
+        except ValueError:
+            continue
+    if not versions:
+        return None
+    # Pick the max so a downstream "bump patch" produces a version
+    # strictly greater than every child currently in the workspace.
+    return max(versions, key=lambda v: (v.major, v.minor, v.patch, v.release is None, v.release or ""))
 
 
 def get_version_from_pyproject_toml(path: Path) -> Version | None:
@@ -635,12 +736,17 @@ def handle_version(args: VersionArgs) -> None:
 
     # 在版本选择前显示检测到的文件
     detected_files = get_detected_files(path) if recursive else get_root_detected_files(path)
+    cargo_lockfiles = cargo_lockfiles_for_manifests([f for f in detected_files if f.name == "Cargo.toml"])
 
-    if detected_files:
-        console.print(f"Detected [cyan bold]{len(detected_files)}[/cyan bold] files to update:")
+    total_files = len(detected_files) + len(cargo_lockfiles)
+    if total_files:
+        console.print(f"Detected [cyan bold]{total_files}[/cyan bold] files to update:")
         current_path = Path(path).resolve()
-        for file_path in detected_files:
-            relative_path = file_path.relative_to(current_path)
+        for file_path in [*detected_files, *cargo_lockfiles]:
+            try:
+                relative_path = file_path.relative_to(current_path)
+            except ValueError:
+                relative_path = file_path
             console.print(f"  - {relative_path}")
     else:
         console.print("No version files detected for update.")
@@ -858,35 +964,35 @@ def update_version_files(
     # 获取检测到的文件列表
     detected_files = get_detected_files(args.path) if recursive else get_root_detected_files(args.path)
 
-    # 更新文件
+    # Check if we're in a test environment to avoid interactive prompts
+    is_test_env = "pytest" in sys.modules or "unittest" in sys.modules
+    show_diff = not is_test_env and not recursive
+
+    cargo_toml_paths: list[Path] = []
     for file_path in detected_files:
-        # Check if we're in a test environment to avoid interactive prompts
-        is_test_env = "pytest" in sys.modules or "unittest" in sys.modules
-        show_diff = not is_test_env and not recursive
         update_version_in_file(verbose, next_version_str, file_path.name, file_path, show_diff=show_diff)
+        if file_path.name == "Cargo.toml":
+            cargo_toml_paths.append(file_path)
+
+    # Cargo.lock pins every workspace member's version. Without syncing
+    # it here, `cargo publish` / `cargo build --locked` refuse to run
+    # against a manifest that disagrees with the lockfile. Dedup by
+    # lockfile path so a workspace's shared root lockfile isn't
+    # rewritten N times.
+    if cargo_toml_paths:
+        sync_cargo_lockfiles(cargo_toml_paths, next_version_str, verbose, show_diff=show_diff)
 
 
 def update_version_in_file(verbose: int, next_version_str: str, file: str, file_path: Path, *, show_diff: bool = False) -> None:
     # sourcery skip: collection-into-set, merge-duplicate-blocks, remove-redundant-if
     if file == "package.json":
-        update_file(str(file_path), r'"version":\s*".*?"', f'"version": "{next_version_str}"', verbose, show_diff=show_diff)
+        update_package_json_version(str(file_path), next_version_str, verbose, show_diff=show_diff)
     elif file in ("pyproject.toml", "build.gradle.kts"):
         update_file(str(file_path), r'version\s*=\s*".*?"', f'version = "{next_version_str}"', verbose, show_diff=show_diff)
     elif file == "setup.py":
         update_file(str(file_path), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=show_diff)
     elif file == "Cargo.toml":
-        crate_name = _get_cargo_package_name(file_path)
         update_cargo_toml_version(str(file_path), next_version_str, verbose, show_diff=show_diff)
-        # Cargo.lock pins every workspace member's version. Without
-        # syncing it here, `cargo publish` and `cargo build --locked`
-        # refuse to run against a manifest that disagrees with the
-        # lockfile — the most common reason a release tag gets bumped
-        # but the publish CI step fails on "working directory contains
-        # changes". Idempotent / no-op for pure non-Rust projects.
-        if crate_name:
-            lockfile = _find_cargo_lock_for(file_path.parent)
-            if lockfile is not None:
-                update_cargo_lock_version(crate_name, next_version_str, lockfile, verbose, show_diff=show_diff)
     elif file in ("VERSION", "VERSION.txt"):
         update_file(str(file_path), None, next_version_str, verbose, show_diff=show_diff)
     elif file in ("__about__.py", "__init__.py"):
@@ -936,6 +1042,47 @@ def update_file(filename: str, search_pattern: str | None, replace_text: str, ve
         show_file_diff(content, new_content, str(file_path))
     with file_path.open("w", encoding="utf-8") as f:
         f.write(new_content)
+
+
+def update_package_json_version(filename: str, next_version_str: str, verbose: int, *, show_diff: bool = True) -> None:
+    """Update or insert the `version` field in a package.json.
+
+    Workspace roots (pnpm/npm/yarn monorepos) often omit `version` —
+    a plain regex replace would silently no-op. We insert the field
+    just after the opening brace so the file becomes a usable
+    canonical "current release" record for the monorepo.
+    """
+    file_path = Path(filename)
+    if not file_path.exists():
+        return
+    if verbose > 0:
+        console.print(f"Updating {file_path}")
+    content = file_path.read_text(encoding="utf-8", errors="replace")
+    new_content, n = re.subn(
+        r'"version"\s*:\s*"[^"]*"',
+        f'"version": "{next_version_str}"',
+        content,
+        count=1,
+    )
+    if n == 0:
+        # No existing `version` key — insert at the top of the root
+        # object. Indentation is best-effort: package.json is
+        # conventionally 2-space indented.
+        new_content, n = re.subn(
+            r"^(\s*\{[ \t]*\r?\n)",
+            lambda m: f'{m.group(1)}  "version": "{next_version_str}",\n',
+            content,
+            count=1,
+        )
+        if n == 0:
+            # Not a recognizable object literal (one-liner / array /
+            # malformed) — better to skip than corrupt the file.
+            return
+    if new_content == content:
+        return
+    if show_diff:
+        show_file_diff(content, new_content, str(file_path))
+    file_path.write_text(new_content, encoding="utf-8")
 
 
 def update_cargo_toml_version(filename: str, next_version_str: str, verbose: int, *, show_diff: bool = True) -> None:
@@ -1009,6 +1156,59 @@ def _find_cargo_lock_for(cargo_toml_dir: Path) -> Path | None:
         if current.parent == current:
             return None
         current = current.parent
+
+
+def cargo_lockfiles_for_manifests(cargo_toml_paths: list[Path]) -> list[Path]:
+    """Resolve unique Cargo.lock files for a set of Cargo.toml manifests.
+
+    Workspace members share a single root-level lockfile; without
+    dedup we'd rewrite it once per member. Order is preserved by first
+    sighting.
+    """
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for cargo_toml in cargo_toml_paths:
+        if cargo_toml.name != "Cargo.toml":
+            continue
+        lockfile = _find_cargo_lock_for(cargo_toml.parent)
+        if lockfile is None:
+            continue
+        resolved = lockfile.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        result.append(lockfile)
+    return result
+
+
+def sync_cargo_lockfiles(
+    cargo_toml_paths: list[Path],
+    next_version_str: str,
+    verbose: int,
+    *,
+    show_diff: bool = False,
+) -> None:
+    """Rewrite each Cargo.lock entry that matches a just-bumped manifest.
+
+    Decoupled from the per-file update loop so the lockfile shows up
+    as its own step (workspace members share one lockfile; the loop
+    would otherwise rewrite it once per member). No-op for pure
+    non-Rust projects or when the lockfile lacks an entry for the
+    local crate.
+    """
+    crate_to_lockfile: dict[Path, list[str]] = {}
+    for cargo_toml in cargo_toml_paths:
+        crate_name = _get_cargo_package_name(cargo_toml)
+        if not crate_name:
+            continue
+        lockfile = _find_cargo_lock_for(cargo_toml.parent)
+        if lockfile is None:
+            continue
+        crate_to_lockfile.setdefault(lockfile.resolve(), []).append(crate_name)
+
+    for lockfile, crate_names in crate_to_lockfile.items():
+        for crate_name in crate_names:
+            update_cargo_lock_version(crate_name, next_version_str, lockfile, verbose, show_diff=show_diff)
 
 
 def update_cargo_lock_version(

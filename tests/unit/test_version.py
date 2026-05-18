@@ -19,8 +19,11 @@ from tgit.version import (
     _parse_gitignore,
     _prompt_for_version_choice,
     _should_ignore_path,
+    _version_from_workspace_children,
     bump_version,
+    cargo_lockfiles_for_manifests,
     execute_git_commands,
+    find_workspace_package_jsons,
     format_diff_lines,
     get_current_version,
     get_custom_version,
@@ -39,9 +42,11 @@ from tgit.version import (
     get_version_from_version_txt,
     handle_version,
     show_file_diff,
+    sync_cargo_lockfiles,
     update_cargo_lock_version,
     update_cargo_toml_version,
     update_file,
+    update_package_json_version,
     update_version_files,
     update_version_in_file,
     version,
@@ -1110,37 +1115,32 @@ class TestUpdateCargoLockVersion:
         assert lockfile.stat().st_mtime_ns == before
 
 
-class TestUpdateVersionInFileCargoIntegration:
-    """update_version_in_file should sync Cargo.lock when it sees Cargo.toml."""
+class TestSyncCargoLockfiles:
+    """sync_cargo_lockfiles is the post-manifest step that rewrites
+    every Cargo.lock entry matching a bumped manifest. Manifest update
+    and lockfile sync are deliberately decoupled so workspace members
+    sharing one lockfile don't trigger N rewrites of it."""
 
-    def test_cargo_toml_branch_syncs_sibling_lockfile(self, tmp_path):
+    def test_syncs_sibling_lockfile(self, tmp_path):
         cargo_toml = tmp_path / "Cargo.toml"
         cargo_toml.write_text(
             "[package]\n"
             'name = "arthash"\n'
-            'version = "0.2.0"\n'
-            "\n"
-            "[dependencies]\n"
-            'matrixmultiply = "0.3"\n',
+            'version = "0.3.0"\n',
             encoding="utf-8",
         )
         lockfile = tmp_path / "Cargo.lock"
         lockfile.write_text(
             "[[package]]\n"
             'name = "arthash"\n'
-            'version = "0.2.0"\n'
-            "dependencies = [\n"
-            ' "matrixmultiply",\n'
-            "]\n",
+            'version = "0.2.0"\n',
             encoding="utf-8",
         )
-        update_version_in_file(0, "0.3.0", "Cargo.toml", cargo_toml, show_diff=False)
-        # Both files should now report 0.3.0.
-        assert 'version = "0.3.0"' in cargo_toml.read_text()
+        sync_cargo_lockfiles([cargo_toml], "0.3.0", 0, show_diff=False)
         assert 'version = "0.3.0"' in lockfile.read_text()
 
-    def test_cargo_toml_branch_syncs_workspace_root_lockfile(self, tmp_path):
-        """Lockfile in workspace root, Cargo.toml in a member directory."""
+    def test_syncs_workspace_root_lockfile(self, tmp_path):
+        """Workspace member's manifest, lockfile at the workspace root."""
         (tmp_path / ".git").mkdir()
         lockfile = tmp_path / "Cargo.lock"
         lockfile.write_text(
@@ -1155,26 +1155,235 @@ class TestUpdateVersionInFileCargoIntegration:
         cargo_toml.write_text(
             "[package]\n"
             'name = "alpha"\n'
-            'version = "0.2.0"\n',
+            'version = "0.3.0"\n',
             encoding="utf-8",
         )
-        update_version_in_file(0, "0.3.0", "Cargo.toml", cargo_toml, show_diff=False)
-        assert 'version = "0.3.0"' in cargo_toml.read_text()
+        sync_cargo_lockfiles([cargo_toml], "0.3.0", 0, show_diff=False)
         assert 'version = "0.3.0"' in lockfile.read_text()
 
-    def test_cargo_toml_branch_no_lockfile_present(self, tmp_path):
-        """When there's no lockfile at all, the manifest update still proceeds."""
+    def test_no_lockfile_present_is_noop(self, tmp_path):
+        """Pure non-Rust projects or fresh crates may lack a lockfile."""
         (tmp_path / ".git").mkdir()
         cargo_toml = tmp_path / "Cargo.toml"
         cargo_toml.write_text(
             "[package]\n"
             'name = "alpha"\n'
-            'version = "0.2.0"\n',
+            'version = "0.3.0"\n',
             encoding="utf-8",
         )
         # Should not raise.
-        update_version_in_file(0, "0.3.0", "Cargo.toml", cargo_toml, show_diff=False)
-        assert 'version = "0.3.0"' in cargo_toml.read_text()
+        sync_cargo_lockfiles([cargo_toml], "0.3.0", 0, show_diff=False)
+
+    def test_workspace_members_dedup_to_one_lockfile_rewrite(self, tmp_path):
+        """Two members share one lockfile; both their entries must be
+        rewritten, and the lockfile resolution must not duplicate."""
+        (tmp_path / ".git").mkdir()
+        lockfile = tmp_path / "Cargo.lock"
+        lockfile.write_text(
+            "[[package]]\n"
+            'name = "alpha"\n'
+            'version = "0.2.0"\n'
+            "\n"
+            "[[package]]\n"
+            'name = "beta"\n'
+            'version = "0.2.0"\n',
+            encoding="utf-8",
+        )
+        alpha_toml = tmp_path / "crates" / "alpha" / "Cargo.toml"
+        alpha_toml.parent.mkdir(parents=True)
+        alpha_toml.write_text(
+            "[package]\n"
+            'name = "alpha"\n'
+            'version = "0.3.0"\n',
+            encoding="utf-8",
+        )
+        beta_toml = tmp_path / "crates" / "beta" / "Cargo.toml"
+        beta_toml.parent.mkdir(parents=True)
+        beta_toml.write_text(
+            "[package]\n"
+            'name = "beta"\n'
+            'version = "0.3.0"\n',
+            encoding="utf-8",
+        )
+        sync_cargo_lockfiles([alpha_toml, beta_toml], "0.3.0", 0, show_diff=False)
+        new_content = lockfile.read_text()
+        assert new_content.count('version = "0.3.0"') == 2
+        assert 'version = "0.2.0"' not in new_content
+
+    def test_manifests_without_package_name_skipped(self, tmp_path):
+        """A pure [workspace] manifest has no `name`; nothing to do."""
+        (tmp_path / ".git").mkdir()
+        ws_toml = tmp_path / "Cargo.toml"
+        ws_toml.write_text('[workspace]\nmembers = ["crates/alpha"]\n', encoding="utf-8")
+        lockfile = tmp_path / "Cargo.lock"
+        original = '[[package]]\nname = "alpha"\nversion = "0.2.0"\n'
+        lockfile.write_text(original, encoding="utf-8")
+        sync_cargo_lockfiles([ws_toml], "0.3.0", 0, show_diff=False)
+        assert lockfile.read_text() == original
+
+
+class TestCargoLockfilesForManifests:
+    """Resolution of unique Cargo.lock files for a manifest set."""
+
+    def test_dedups_shared_workspace_lockfile(self, tmp_path):
+        (tmp_path / ".git").mkdir()
+        lockfile = tmp_path / "Cargo.lock"
+        lockfile.write_text("# lock\n")
+        alpha = tmp_path / "crates" / "alpha" / "Cargo.toml"
+        alpha.parent.mkdir(parents=True)
+        alpha.write_text('[package]\nname = "alpha"\nversion = "0.1.0"\n')
+        beta = tmp_path / "crates" / "beta" / "Cargo.toml"
+        beta.parent.mkdir(parents=True)
+        beta.write_text('[package]\nname = "beta"\nversion = "0.1.0"\n')
+        result = cargo_lockfiles_for_manifests([alpha, beta])
+        assert result == [lockfile]
+
+    def test_ignores_non_cargo_paths(self, tmp_path):
+        assert cargo_lockfiles_for_manifests([tmp_path / "package.json"]) == []
+
+    def test_missing_lockfile_returns_empty(self, tmp_path):
+        (tmp_path / ".git").mkdir()
+        cargo_toml = tmp_path / "Cargo.toml"
+        cargo_toml.write_text('[package]\nname = "x"\nversion = "0.1.0"\n')
+        assert cargo_lockfiles_for_manifests([cargo_toml]) == []
+
+
+class TestUpdatePackageJsonVersion:
+    """update_package_json_version handles both replace (most pkgs) and
+    insert (pnpm/npm workspace roots that omit `version`)."""
+
+    def test_replaces_existing_version(self, tmp_path):
+        pkg = tmp_path / "package.json"
+        pkg.write_text('{\n  "name": "x",\n  "version": "0.1.0"\n}\n', encoding="utf-8")
+        update_package_json_version(str(pkg), "0.2.0", 0, show_diff=False)
+        assert '"version": "0.2.0"' in pkg.read_text()
+        assert '"version": "0.1.0"' not in pkg.read_text()
+
+    def test_inserts_when_missing(self, tmp_path):
+        """Workspace root without `version` — must end up with one
+        and remain valid JSON."""
+        pkg = tmp_path / "package.json"
+        pkg.write_text(
+            '{\n  "name": "monorepo",\n  "private": true,\n  "workspaces": ["packages/*"]\n}\n',
+            encoding="utf-8",
+        )
+        update_package_json_version(str(pkg), "1.0.0", 0, show_diff=False)
+        new_content = pkg.read_text()
+        assert '"version": "1.0.0"' in new_content
+        # Still valid JSON
+        import json as _json
+        data = _json.loads(new_content)
+        assert data["version"] == "1.0.0"
+        assert data["name"] == "monorepo"
+
+    def test_only_first_version_match_replaced(self, tmp_path):
+        """Avoid touching a nested `"version"` inside dependencies."""
+        pkg = tmp_path / "package.json"
+        pkg.write_text(
+            '{\n'
+            '  "name": "x",\n'
+            '  "version": "0.1.0",\n'
+            '  "dependencies": {\n'
+            '    "left-pad": "1.3.0"\n'
+            '  }\n'
+            '}\n',
+            encoding="utf-8",
+        )
+        update_package_json_version(str(pkg), "0.2.0", 0, show_diff=False)
+        new_content = pkg.read_text()
+        assert '"version": "0.2.0"' in new_content
+        # left-pad pin must remain unchanged
+        assert '"left-pad": "1.3.0"' in new_content
+
+    def test_file_not_exists_is_noop(self, tmp_path):
+        # Should not raise.
+        update_package_json_version(str(tmp_path / "missing.json"), "1.0.0", 0, show_diff=False)
+
+
+class TestWorkspaceVersionDiscovery:
+    """When the root package.json omits `version` (typical pnpm/yarn
+    monorepo root), version detection falls back to the highest
+    version among workspace children."""
+
+    def test_pnpm_workspace_yaml_resolves_child_versions(self, tmp_path):
+        (tmp_path / "package.json").write_text('{"name": "root", "private": true}\n', encoding="utf-8")
+        (tmp_path / "pnpm-workspace.yaml").write_text('packages:\n  - "packages/*"\n', encoding="utf-8")
+        alpha = tmp_path / "packages" / "alpha"
+        alpha.mkdir(parents=True)
+        (alpha / "package.json").write_text('{"name": "@x/alpha", "version": "1.2.3"}\n', encoding="utf-8")
+        beta = tmp_path / "packages" / "beta"
+        beta.mkdir(parents=True)
+        (beta / "package.json").write_text('{"name": "@x/beta", "version": "1.5.0"}\n', encoding="utf-8")
+
+        version = get_version_from_package_json(tmp_path)
+        assert version is not None
+        # Max of child versions
+        assert (version.major, version.minor, version.patch) == (1, 5, 0)
+
+    def test_npm_workspaces_field_list(self, tmp_path):
+        (tmp_path / "package.json").write_text(
+            '{"name": "root", "private": true, "workspaces": ["packages/*"]}\n',
+            encoding="utf-8",
+        )
+        alpha = tmp_path / "packages" / "alpha"
+        alpha.mkdir(parents=True)
+        (alpha / "package.json").write_text('{"name": "@x/alpha", "version": "0.4.0"}\n', encoding="utf-8")
+
+        version = get_version_from_package_json(tmp_path)
+        assert version is not None
+        assert (version.major, version.minor, version.patch) == (0, 4, 0)
+
+    def test_yarn_workspaces_object_form(self, tmp_path):
+        (tmp_path / "package.json").write_text(
+            '{"name": "root", "workspaces": {"packages": ["modules/*"]}}\n',
+            encoding="utf-8",
+        )
+        alpha = tmp_path / "modules" / "alpha"
+        alpha.mkdir(parents=True)
+        (alpha / "package.json").write_text('{"name": "@x/alpha", "version": "2.0.1"}\n', encoding="utf-8")
+
+        version = get_version_from_package_json(tmp_path)
+        assert version is not None
+        assert (version.major, version.minor, version.patch) == (2, 0, 1)
+
+    def test_root_version_takes_precedence(self, tmp_path):
+        """If root has its own version, children are ignored."""
+        (tmp_path / "package.json").write_text(
+            '{"name": "root", "version": "5.0.0", "workspaces": ["packages/*"]}\n',
+            encoding="utf-8",
+        )
+        alpha = tmp_path / "packages" / "alpha"
+        alpha.mkdir(parents=True)
+        (alpha / "package.json").write_text('{"version": "9.9.9"}\n', encoding="utf-8")
+        version = get_version_from_package_json(tmp_path)
+        assert version is not None
+        assert (version.major, version.minor, version.patch) == (5, 0, 0)
+
+    def test_no_workspace_no_version_returns_none(self, tmp_path):
+        (tmp_path / "package.json").write_text('{"name": "x"}\n', encoding="utf-8")
+        assert get_version_from_package_json(tmp_path) is None
+
+    def test_child_without_version_skipped(self, tmp_path):
+        (tmp_path / "package.json").write_text('{"workspaces": ["packages/*"]}\n', encoding="utf-8")
+        alpha = tmp_path / "packages" / "alpha"
+        alpha.mkdir(parents=True)
+        (alpha / "package.json").write_text('{"name": "@x/alpha"}\n', encoding="utf-8")
+        beta = tmp_path / "packages" / "beta"
+        beta.mkdir(parents=True)
+        (beta / "package.json").write_text('{"name": "@x/beta", "version": "0.1.0"}\n', encoding="utf-8")
+
+        version = get_version_from_package_json(tmp_path)
+        assert version is not None
+        assert (version.major, version.minor, version.patch) == (0, 1, 0)
+
+    def test_find_workspace_package_jsons_excludes_root(self, tmp_path):
+        (tmp_path / "package.json").write_text('{"workspaces": ["."]}\n', encoding="utf-8")
+        result = find_workspace_package_jsons(tmp_path)
+        assert result == []
+
+    def test_version_from_workspace_children_no_workspace(self, tmp_path):
+        """No workspaces config at all → no children, returns None."""
+        assert _version_from_workspace_children(tmp_path) is None
 
 
 class TestParseGitignore:

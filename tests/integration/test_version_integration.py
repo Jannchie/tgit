@@ -305,6 +305,110 @@ description = "Test package"
         node_modules_content = json.loads(node_modules_package_json.read_text())
         assert node_modules_content["version"] == "1.0.0"
 
+    def _build_args(self, tmp_path, *, recursive: bool) -> VersionArgs:
+        return VersionArgs(
+            version="",
+            verbose=0,
+            no_commit=True,
+            no_tag=True,
+            no_push=True,
+            patch=False,
+            minor=False,
+            major=False,
+            prepatch="",
+            preminor="",
+            premajor="",
+            recursive=recursive,
+            custom="",
+            path=str(tmp_path),
+        )
+
+    def test_update_version_files_syncs_cargo_lock(self, tmp_path):
+        """End-to-end: bumping a crate's Cargo.toml also rewrites its
+        Cargo.lock entry. The lockfile lives next to the manifest."""
+        (tmp_path / "Cargo.toml").write_text(
+            '[package]\nname = "demo"\nversion = "0.1.0"\n',
+            encoding="utf-8",
+        )
+        (tmp_path / "Cargo.lock").write_text(
+            '[[package]]\nname = "demo"\nversion = "0.1.0"\n',
+            encoding="utf-8",
+        )
+        update_version_files(
+            self._build_args(tmp_path, recursive=False),
+            Version(major=0, minor=2, patch=0),
+            verbose=0,
+            recursive=False,
+        )
+        assert 'version = "0.2.0"' in (tmp_path / "Cargo.toml").read_text()
+        assert 'version = "0.2.0"' in (tmp_path / "Cargo.lock").read_text()
+
+    def test_update_version_files_workspace_lockfile_dedups(self, tmp_path):
+        """Cargo workspace with two members and one shared lockfile —
+        both [[package]] entries get rewritten, but the lockfile is
+        not duplicated."""
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "Cargo.toml").write_text(
+            '[workspace]\nmembers = ["crates/alpha", "crates/beta"]\n',
+            encoding="utf-8",
+        )
+        (tmp_path / "Cargo.lock").write_text(
+            '[[package]]\nname = "alpha"\nversion = "0.1.0"\n\n'
+            '[[package]]\nname = "beta"\nversion = "0.1.0"\n',
+            encoding="utf-8",
+        )
+        alpha = tmp_path / "crates" / "alpha"
+        alpha.mkdir(parents=True)
+        (alpha / "Cargo.toml").write_text(
+            '[package]\nname = "alpha"\nversion = "0.1.0"\n',
+            encoding="utf-8",
+        )
+        beta = tmp_path / "crates" / "beta"
+        beta.mkdir(parents=True)
+        (beta / "Cargo.toml").write_text(
+            '[package]\nname = "beta"\nversion = "0.1.0"\n',
+            encoding="utf-8",
+        )
+        update_version_files(
+            self._build_args(tmp_path, recursive=True),
+            Version(major=0, minor=2, patch=0),
+            verbose=0,
+            recursive=True,
+        )
+        lockfile_content = (tmp_path / "Cargo.lock").read_text()
+        assert lockfile_content.count('version = "0.2.0"') == 2
+        assert 'version = "0.1.0"' not in lockfile_content
+
+    def test_update_version_files_pnpm_root_without_version(self, tmp_path):
+        """pnpm workspace root without `version`: bump must insert
+        one in the root package.json and update children too."""
+        (tmp_path / "package.json").write_text(
+            '{\n  "name": "monorepo",\n  "private": true\n}\n',
+            encoding="utf-8",
+        )
+        (tmp_path / "pnpm-workspace.yaml").write_text(
+            'packages:\n  - "packages/*"\n',
+            encoding="utf-8",
+        )
+        alpha = tmp_path / "packages" / "alpha"
+        alpha.mkdir(parents=True)
+        (alpha / "package.json").write_text(
+            '{"name": "@x/alpha", "version": "0.1.0"}\n',
+            encoding="utf-8",
+        )
+
+        update_version_files(
+            self._build_args(tmp_path, recursive=True),
+            Version(major=0, minor=2, patch=0),
+            verbose=0,
+            recursive=True,
+        )
+        root_data = json.loads((tmp_path / "package.json").read_text())
+        assert root_data["version"] == "0.2.0"
+        assert root_data["name"] == "monorepo"
+        child_data = json.loads((alpha / "package.json").read_text())
+        assert child_data["version"] == "0.2.0"
+
     @patch("tgit.version.get_next_version")
     @patch("tgit.version.get_current_version")
     @patch("tgit.version.update_version_files")

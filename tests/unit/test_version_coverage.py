@@ -311,14 +311,12 @@ version = "invalid"
             str(file_path), r'version\s*=\s*".*?"', 'version = "1.2.3"', 0, show_diff=False
         )
 
-    @patch("tgit.version.update_file")
+    @patch("tgit.version.update_package_json_version")
     def test_update_version_in_file_package_json(self, mock_update, tmp_path):
         """Test update_version_in_file for package.json."""
         file_path = tmp_path / "package.json"
         update_version_in_file(0, "1.2.3", "package.json", file_path)
-        mock_update.assert_called_once_with(
-            str(file_path), r'"version":\s*".*?"', '"version": "1.2.3"', 0, show_diff=False
-        )
+        mock_update.assert_called_once_with(str(file_path), "1.2.3", 0, show_diff=False)
 
     @patch("tgit.version.update_file")
     def test_update_version_in_file_version_txt(self, mock_update, tmp_path):

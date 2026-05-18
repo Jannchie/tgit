@@ -1873,7 +1873,7 @@ wheels = [
 
 [[package]]
 name = "tgit"
-version = "0.34.1"
+version = "0.34.2"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
