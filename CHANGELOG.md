@@ -1,3 +1,15 @@
+## v0.34.2
+
+[v0.34.1...v0.34.2](https://github.com/Jannchie/tgit/compare/v0.34.1...v0.34.2)
+
+### :adhesive_bandage: Fixes
+
+- **version**: replace utf-8 errors handling in version file reads - By [Jannchie](mailto:jannchie@gmail.com) in [27dd1f8](https://github.com/Jannchie/tgit/commit/27dd1f8)
+
+### :test_tube: Tests
+
+- **cargo**: add unit tests for cargo version updates - By [Jianqi Pan](mailto:jannchie@gmail.com) in [bce5042](https://github.com/Jannchie/tgit/commit/bce5042)
+
 ## v0.34.1
 
 [v0.34.0...v0.34.1](https://github.com/Jannchie/tgit/compare/v0.34.0...v0.34.1)
