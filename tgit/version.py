@@ -875,7 +875,18 @@ def update_version_in_file(verbose: int, next_version_str: str, file: str, file_
     elif file == "setup.py":
         update_file(str(file_path), r"version=['\"].*?['\"]", f"version='{next_version_str}'", verbose, show_diff=show_diff)
     elif file == "Cargo.toml":
+        crate_name = _get_cargo_package_name(file_path)
         update_cargo_toml_version(str(file_path), next_version_str, verbose, show_diff=show_diff)
+        # Cargo.lock pins every workspace member's version. Without
+        # syncing it here, `cargo publish` and `cargo build --locked`
+        # refuse to run against a manifest that disagrees with the
+        # lockfile — the most common reason a release tag gets bumped
+        # but the publish CI step fails on "working directory contains
+        # changes". Idempotent / no-op for pure non-Rust projects.
+        if crate_name:
+            lockfile = _find_cargo_lock_for(file_path.parent)
+            if lockfile is not None:
+                update_cargo_lock_version(crate_name, next_version_str, lockfile, verbose, show_diff=show_diff)
     elif file in ("VERSION", "VERSION.txt"):
         update_file(str(file_path), None, next_version_str, verbose, show_diff=show_diff)
     elif file in ("__about__.py", "__init__.py"):
@@ -956,6 +967,82 @@ def update_cargo_toml_version(filename: str, next_version_str: str, verbose: int
 
     with file_path.open("w", encoding="utf-8") as f:
         f.write(new_content)
+
+
+def _get_cargo_package_name(cargo_toml_path: Path) -> str | None:
+    """Read [package].name from a Cargo.toml. Returns None if missing/invalid.
+
+    Used to anchor lockfile rewrites — we need the crate's own name to
+    find its entry in Cargo.lock.
+    """
+    if not cargo_toml_path.is_file():
+        return None
+    try:
+        with cargo_toml_path.open("rb") as f:
+            data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    package = data.get("package")
+    if not isinstance(package, dict):
+        return None
+    name = package.get("name")
+    return name if isinstance(name, str) and name else None
+
+
+def _find_cargo_lock_for(cargo_toml_dir: Path) -> Path | None:
+    """Walk up from a Cargo.toml's directory looking for a Cargo.lock.
+
+    Covers both layouts:
+      * single crate with its own Cargo.lock (lockfile in same dir)
+      * cargo workspace where members share a root-level Cargo.lock
+
+    Stops at the directory containing .git (we never escape the current
+    repo) or at the filesystem root.
+    """
+    current = cargo_toml_dir.resolve()
+    while True:
+        candidate = current / "Cargo.lock"
+        if candidate.is_file():
+            return candidate
+        if (current / ".git").exists():
+            return None
+        if current.parent == current:
+            return None
+        current = current.parent
+
+
+def update_cargo_lock_version(
+    crate_name: str,
+    next_version_str: str,
+    lockfile_path: Path,
+    verbose: int,
+    *,
+    show_diff: bool = True,
+) -> None:
+    """Sync a local crate's version in Cargo.lock.
+
+    Cargo.lock records every dep, but registry deps carry a
+    `source = "registry+..."` line between `name` and `version`.
+    Workspace members / path deps do NOT — their `version` is on the
+    line immediately after `name`. We anchor on that two-line shape so
+    registry deps with the same name as a local crate can't be hit by
+    mistake. No-op if the crate isn't in this lockfile or is already
+    in sync.
+    """
+    if not lockfile_path.is_file():
+        return
+    if verbose > 0:
+        console.print(f"Updating {lockfile_path}")
+    content = lockfile_path.read_text(encoding="utf-8")
+    pattern = re.compile(
+        rf'(\[\[package\]\]\nname = "{re.escape(crate_name)}"\nversion = ")[^"]+(")',
+    )
+    new_content, n = pattern.subn(rf"\g<1>{next_version_str}\g<2>", content, count=1)
+    if n == 0 or new_content == content:
+        return
+    if show_diff:
+        show_file_diff(content, new_content, str(lockfile_path))
+    lockfile_path.write_text(new_content, encoding="utf-8")
 
 
 def show_file_diff(old_content: str, new_content: str, filename: str) -> None:
