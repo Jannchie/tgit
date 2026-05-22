@@ -1,3 +1,15 @@
+## v0.35.0
+
+[v0.34.2...v0.35.0](https://github.com/Jannchie/tgit/compare/v0.34.2...v0.35.0)
+
+### :sparkles: Features
+
+- **version**: add support for syncing Cargo.lock with Cargo.toml - By [Jannchie](mailto:jannchie@gmail.com) in [7ca29ae](https://github.com/Jannchie/tgit/commit/7ca29ae)
+
+### :wrench: Chores
+
+- update risk detection guidelines - By [Jannchie](mailto:jannchie@gmail.com) in [b5e0762](https://github.com/Jannchie/tgit/commit/b5e0762)
+
 ## v0.34.2
 
 [v0.34.1...v0.34.2](https://github.com/Jannchie/tgit/compare/v0.34.1...v0.34.2)
