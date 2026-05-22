@@ -65,12 +65,27 @@ Select the most appropriate type based on the semantic versioning rules above.
 - Cover the primary change(s) in the diff
 - If multiple distinct changes, separate with " && " (e.g., "update api && fix validation")
 
-### Secret Detection
-- Review the diff for potential secrets (API keys, tokens, passwords, private keys, credentials, etc.).
-- For every suspected secret, add an entry to the `secrets` array with the file path, a brief description, and a `level`.
-- Use `level: "error"` when an actual secret value appears (tokens, passwords, private keys, credentials, connection strings, or high-entropy values).
-- Use `level: "warning"` when only key names or variable names appear without values (e.g., `API_KEY`, `SECRET_KEY`, `PASSWORD`).
-- If no secrets are found, return an empty array.
+### Risky Content & Files Detection
+Review the diff and the list of changed files for anything that should not normally be committed. For every finding, append an entry to the `secrets` array with the file path, a brief description, and a `level` (`warning` or `error`). Return an empty array if nothing is found.
+
+Flag two broad categories:
+
+**1. Secrets / credentials embedded in code or config**
+- `level: "error"` when an actual secret value appears: tokens, passwords, private keys, credentials, connection strings, OAuth client secrets, or high-entropy strings that look like generated keys.
+- `level: "warning"` when only key names or variable names appear without values (e.g., `API_KEY=`, `SECRET_KEY=`, `PASSWORD=`).
+
+**2. Files that should not be tracked in version control**
+Flag these as `level: "error"` (description should explain what kind of file it is and why it shouldn't be committed). Use judgment based on filename, file path, and content:
+- Log files: `*.log`, `npm-debug.log*`, `yarn-error.log*`, `pnpm-debug.log*`, anything under a `logs/` directory.
+- Local/runtime environment files: `.env`, `.env.local`, `.env.*.local`, `.env.development.local`, `.env.production.local`. (Example/template env files like `.env.example`, `.env.sample`, `.env.template` are fine — do NOT flag them.)
+- Private key / credential files: `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_rsa`, `id_ed25519`, `id_dsa`, `id_ecdsa`, `credentials.json`, `secrets.json`, `secrets.yaml`, `secrets.yml`.
+- OS metadata: `.DS_Store`, `Thumbs.db`, `desktop.ini`, `ehthumbs.db`.
+- Editor swap / backup files: `*.swp`, `*.swo`, `*~`, `*.orig`, `*.bak`, `*.rej`.
+- Dependency / build / cache directories that virtually never belong in source control: `node_modules/`, `__pycache__/`, `*.pyc`, `*.pyo`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `.tox/`, `.coverage`, `htmlcov/`, `*.egg-info/`, `.next/`, `.nuxt/`, `.turbo/`, `.parcel-cache/`, `.venv/`, `venv/`, `dist/`, `build/`, `target/debug/`, `target/release/`, `coverage/`.
+- Runtime databases / data dumps that look like artifacts: `*.sqlite`, `*.sqlite3`, `*.db`, large data dumps in obvious artifact locations.
+- Generic temp files: `*.tmp`, `*.temp`, core dumps (`core.*`).
+
+Apply judgment — these patterns are heuristics, not absolute rules. If a file matches a pattern but the project genuinely tracks it on purpose (e.g., a fixture SQLite under `tests/fixtures/`, a vendored binary, a checked-in `dist/` for a published artifact), do not flag it. Conversely, flag files that clearly look like artifacts even if they don't match the patterns above.
 
 ## Output Format
 Return valid JSON matching this structure:
@@ -97,6 +112,7 @@ Return valid JSON matching this structure:
 {"type": "refactor", "scope": "api", "msg": "restructure endpoint handlers", "is_breaking": false, "secrets": []}
 {"type": "feat", "scope": "api", "msg": "add user deletion endpoint", "is_breaking": true, "secrets": []}
 {"type": "chore", "scope": "deps", "msg": "update dependencies", "is_breaking": false, "secrets": [{"file": "config/.env", "description": "detected value resembling api key", "level": "error"}]}
+{"type": "chore", "scope": null, "msg": "update build pipeline", "is_breaking": false, "secrets": [{"file": "logs/server.log", "description": "log file should not be committed", "level": "error"}, {"file": "node_modules/lodash/package.json", "description": "node_modules dependency directory should not be committed", "level": "error"}]}
 ```
 
 Now analyze the provided diff and generate the commit message.
